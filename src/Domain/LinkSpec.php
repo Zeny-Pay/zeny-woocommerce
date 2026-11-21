@@ -19,12 +19,12 @@ final class LinkSpec {
 	public const MIN_LIFETIME_MINUTES = 15;
 	public const MAX_LIFETIME_MINUTES = 10080;
 
-	private const NAME_MAX         = 120;
-	private const DESCRIPTION_MAX  = 500;
-	private const URL_MAX          = 2048;
-	private const INSTRUMENTS_MAX  = 30;
-	private const PAYER_FIELDS     = array( 'name', 'email', 'phone' );
-	private const INSTRUMENT_REGEX = '/^[A-Z0-9_]{1,32}$/D';
+	private const NAME_MAX          = 120;
+	private const DESCRIPTION_MAX   = 500;
+	private const URL_MAX           = 2048;
+	private const INSTRUMENTS_MAX   = 30;
+	private const PAYER_FIELDS      = array( 'name', 'email', 'phone' );
+	public const INSTRUMENT_PATTERN = '/^[A-Z0-9_]{1,32}$/D';
 
 	/**
 	 * Link name.
@@ -191,7 +191,7 @@ final class LinkSpec {
 		$valid = array();
 		foreach ( $codes as $code ) {
 			$code = strtoupper( trim( $code ) );
-			if ( 1 === preg_match( self::INSTRUMENT_REGEX, $code ) && ! in_array( $code, $valid, true ) ) {
+			if ( 1 === preg_match( self::INSTRUMENT_PATTERN, $code ) && ! in_array( $code, $valid, true ) ) {
 				$valid[] = $code;
 			}
 		}

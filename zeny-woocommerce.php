@@ -37,4 +37,4 @@ add_action(
 	}
 );
 
-add_action( 'plugins_loaded', array( Zeny\WooCommerce\Plugin::class, 'boot' ) );
+add_action( 'plugins_loaded', array( Zeny\WooCommerce\WooCommerce\Plugin::class, 'boot' ) );

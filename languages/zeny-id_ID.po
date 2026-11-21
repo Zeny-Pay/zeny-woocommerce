@@ -85,19 +85,19 @@ msgid "These payment method codes were removed because they are not valid: %s"
 msgstr "Kode metode pembayaran berikut dihapus karena tidak valid: %s"
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:70
+#: src/WooCommerce/LinkCanceller.php:89
 #, php-format
 msgid "Zeny payment link %s canceled."
 msgstr "Tautan pembayaran Zeny %s dibatalkan."
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:83
+#: src/WooCommerce/LinkCanceller.php:102
 #, php-format
 msgid "Zeny payment link %s took a payment, so it was not canceled. Check the payment in the Zeny dashboard and refund it there if needed."
 msgstr "Tautan pembayaran Zeny %s sudah menerima pembayaran, jadi tidak dibatalkan. Periksa pembayarannya di dasbor Zeny dan kembalikan dananya di sana bila perlu."
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:85
+#: src/WooCommerce/LinkCanceller.php:105
 #, php-format
 msgid "Zeny could not cancel payment link %s. It stops taking payments when it expires."
 msgstr "Zeny tidak dapat membatalkan tautan pembayaran %s. Tautan berhenti menerima pembayaran saat kedaluwarsa."
@@ -115,28 +115,28 @@ msgid "We could not start the Zeny payment for this order. Contact us to complet
 msgstr "Kami tidak dapat memulai pembayaran Zeny untuk pesanan ini. Hubungi kami untuk menyelesaikan pesanan Anda."
 
 #. translators: 1: payment link id, 2: Sandbox or Production.
-#: src/WooCommerce/LinkCheckout.php:255
+#: src/WooCommerce/LinkCheckout.php:272
 #, php-format
 msgid "Zeny payment link %1$s created (%2$s). Waiting for the shopper to pay."
 msgstr "Tautan pembayaran Zeny %1$s dibuat (%2$s). Menunggu pembeli membayar."
 
 #. translators: 1: order number, 2: shop name.
-#: src/WooCommerce/LinkCheckout.php:343
+#: src/WooCommerce/LinkCheckout.php:360
 #, php-format
 msgid "Order #%1$s – %2$s"
 msgstr "Pesanan #%1$s – %2$s"
 
 #. translators: %s: reference to quote to support.
-#: src/WooCommerce/LinkCheckout.php:378
+#: src/WooCommerce/LinkCheckout.php:395
 #, php-format
 msgid "We could not start the Zeny payment. Please try again. If it keeps failing, contact us and quote reference %s."
 msgstr "Kami tidak dapat memulai pembayaran Zeny. Silakan coba lagi. Jika masih gagal, hubungi kami dan sebutkan referensi %s."
 
-#: src/WooCommerce/LinkCheckout.php:387
+#: src/WooCommerce/LinkCheckout.php:404
 msgid "Production"
 msgstr "Produksi"
 
-#: src/WooCommerce/LinkCheckout.php:387
+#: src/WooCommerce/LinkCheckout.php:404
 msgid "Sandbox"
 msgstr "Sandbox"
 
@@ -147,42 +147,42 @@ msgid "Zeny payment %1$s arrived for this order, which is already paid by %2$s. 
 msgstr "Pembayaran Zeny %1$s masuk untuk pesanan ini, padahal pesanan sudah dibayar dengan %2$s. Pembeli mungkin membayar dua kali: periksa kedua pembayaran di dasbor Zeny dan kembalikan salah satunya di sana."
 
 #. translators: 1: payment id, 2: Sandbox or Production.
-#: src/WooCommerce/OrderCompleter.php:129
+#: src/WooCommerce/OrderCompleter.php:130
 #, php-format
 msgid "Zeny payment %1$s received (%2$s)."
 msgstr "Pembayaran Zeny %1$s diterima (%2$s)."
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:160
+#: src/WooCommerce/OrderCompleter.php:161
 #, php-format
 msgid "Zeny payment %s does not match the order total in IDR."
 msgstr "Pembayaran Zeny %s tidak sama dengan total pesanan dalam IDR."
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:164
+#: src/WooCommerce/OrderCompleter.php:165
 #, php-format
 msgid "Zeny payment %s comes from another environment (Sandbox or Production) than the saved API key."
 msgstr "Pembayaran Zeny %s berasal dari lingkungan (Sandbox atau Produksi) yang berbeda dengan API key yang tersimpan."
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:168
+#: src/WooCommerce/OrderCompleter.php:169
 #, php-format
 msgid "Zeny payment %s was not made through this order's payment link."
 msgstr "Pembayaran Zeny %s tidak dilakukan lewat tautan pembayaran pesanan ini."
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:172
+#: src/WooCommerce/OrderCompleter.php:173
 #, php-format
 msgid "Zeny payment %s is not paid."
 msgstr "Pembayaran Zeny %s belum lunas."
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:176
+#: src/WooCommerce/OrderCompleter.php:181
 #, php-format
 msgid "Zeny payment %s was received after the order was cancelled."
 msgstr "Pembayaran Zeny %s diterima setelah pesanan dibatalkan."
 
-#: src/WooCommerce/OrderCompleter.php:178
+#: src/WooCommerce/OrderCompleter.php:183
 msgid "The order was not marked paid. Check the payment in the Zeny dashboard, then complete or refund it."
 msgstr "Pesanan tidak ditandai lunas. Periksa pembayarannya di dasbor Zeny, lalu selesaikan pesanan atau kembalikan dananya."
 
@@ -420,19 +420,19 @@ msgid "Zeny refused the request: %1$s (request %2$s)."
 msgstr "Zeny menolak permintaan: %1$s (request %2$s)."
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCheckout.php:196
+#: src/WooCommerce/LinkCheckout.php:213
 #, php-format
 msgid "Zeny payment link %s canceled because the order total changed."
 msgstr "Tautan pembayaran Zeny %s dibatalkan karena total pesanan berubah."
 
 #. translators: 1: payment link id, 2: error code.
-#: src/WooCommerce/LinkCheckout.php:208
+#: src/WooCommerce/LinkCheckout.php:225
 #, php-format
 msgid "Zeny could not cancel the replaced payment link %1$s (%2$s). A payment through it is put on hold for you to check."
 msgstr "Zeny tidak dapat membatalkan tautan pembayaran lama %1$s (%2$s). Pembayaran lewat tautan itu akan ditahan agar Anda periksa."
 
 #. translators: 1: error code, 2: request id.
-#: src/WooCommerce/LinkCheckout.php:373
+#: src/WooCommerce/LinkCheckout.php:390
 #, php-format
 msgid "Zeny request failed while starting the payment: %1$s (request %2$s)."
 msgstr "Permintaan ke Zeny gagal saat memulai pembayaran: %1$s (request %2$s)."
@@ -446,3 +446,9 @@ msgstr "Pembayaran Zeny %s masuk untuk pesanan ini, padahal pesanan sudah ditand
 #: src/WooCommerce/Settings.php:172
 msgid "How long a shopper has to pay, from 15 minutes to 7 days (10080 minutes). Stock stays held for an unpaid order while its link is open, even past the WooCommerce hold stock time; the order is cancelled once the link expires."
 msgstr "Berapa lama pembeli dapat membayar, dari 15 menit hingga 7 hari (10080 menit). Stok untuk pesanan yang belum dibayar tetap ditahan selama tautannya masih terbuka, meski melewati batas waktu tahan stok WooCommerce; pesanan dibatalkan setelah tautan kedaluwarsa."
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:177
+#, php-format
+msgid "Zeny payment %s was received for this order while it was in the trash. It was taken out of the trash."
+msgstr "Pembayaran Zeny %s diterima untuk pesanan ini saat pesanan ada di tempat sampah. Pesanan dikeluarkan dari tempat sampah."

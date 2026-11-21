@@ -86,19 +86,19 @@ msgid "These payment method codes were removed because they are not valid: %s"
 msgstr ""
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:70
+#: src/WooCommerce/LinkCanceller.php:89
 #, php-format
 msgid "Zeny payment link %s canceled."
 msgstr ""
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:83
+#: src/WooCommerce/LinkCanceller.php:102
 #, php-format
 msgid "Zeny payment link %s took a payment, so it was not canceled. Check the payment in the Zeny dashboard and refund it there if needed."
 msgstr ""
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCanceller.php:85
+#: src/WooCommerce/LinkCanceller.php:105
 #, php-format
 msgid "Zeny could not cancel payment link %s. It stops taking payments when it expires."
 msgstr ""
@@ -116,46 +116,46 @@ msgid "We could not start the Zeny payment for this order. Contact us to complet
 msgstr ""
 
 #. translators: %s: payment link id.
-#: src/WooCommerce/LinkCheckout.php:196
+#: src/WooCommerce/LinkCheckout.php:213
 #, php-format
 msgid "Zeny payment link %s canceled because the order total changed."
 msgstr ""
 
 #. translators: 1: payment link id, 2: error code.
-#: src/WooCommerce/LinkCheckout.php:208
+#: src/WooCommerce/LinkCheckout.php:225
 #, php-format
 msgid "Zeny could not cancel the replaced payment link %1$s (%2$s). A payment through it is put on hold for you to check."
 msgstr ""
 
 #. translators: 1: payment link id, 2: Sandbox or Production.
-#: src/WooCommerce/LinkCheckout.php:255
+#: src/WooCommerce/LinkCheckout.php:272
 #, php-format
 msgid "Zeny payment link %1$s created (%2$s). Waiting for the shopper to pay."
 msgstr ""
 
 #. translators: 1: order number, 2: shop name.
-#: src/WooCommerce/LinkCheckout.php:343
+#: src/WooCommerce/LinkCheckout.php:360
 #, php-format
 msgid "Order #%1$s – %2$s"
 msgstr ""
 
 #. translators: 1: error code, 2: request id.
-#: src/WooCommerce/LinkCheckout.php:373
+#: src/WooCommerce/LinkCheckout.php:390
 #, php-format
 msgid "Zeny request failed while starting the payment: %1$s (request %2$s)."
 msgstr ""
 
 #. translators: %s: reference to quote to support.
-#: src/WooCommerce/LinkCheckout.php:378
+#: src/WooCommerce/LinkCheckout.php:395
 #, php-format
 msgid "We could not start the Zeny payment. Please try again. If it keeps failing, contact us and quote reference %s."
 msgstr ""
 
-#: src/WooCommerce/LinkCheckout.php:387
+#: src/WooCommerce/LinkCheckout.php:404
 msgid "Production"
 msgstr ""
 
-#: src/WooCommerce/LinkCheckout.php:387
+#: src/WooCommerce/LinkCheckout.php:404
 msgid "Sandbox"
 msgstr ""
 
@@ -172,42 +172,48 @@ msgid "Zeny payment %1$s arrived for this order, which is already paid by %2$s. 
 msgstr ""
 
 #. translators: 1: payment id, 2: Sandbox or Production.
-#: src/WooCommerce/OrderCompleter.php:129
+#: src/WooCommerce/OrderCompleter.php:130
 #, php-format
 msgid "Zeny payment %1$s received (%2$s)."
 msgstr ""
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:160
+#: src/WooCommerce/OrderCompleter.php:161
 #, php-format
 msgid "Zeny payment %s does not match the order total in IDR."
 msgstr ""
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:164
+#: src/WooCommerce/OrderCompleter.php:165
 #, php-format
 msgid "Zeny payment %s comes from another environment (Sandbox or Production) than the saved API key."
 msgstr ""
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:168
+#: src/WooCommerce/OrderCompleter.php:169
 #, php-format
 msgid "Zeny payment %s was not made through this order's payment link."
 msgstr ""
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:172
+#: src/WooCommerce/OrderCompleter.php:173
 #, php-format
 msgid "Zeny payment %s is not paid."
 msgstr ""
 
 #. translators: %s: payment id.
-#: src/WooCommerce/OrderCompleter.php:176
+#: src/WooCommerce/OrderCompleter.php:177
+#, php-format
+msgid "Zeny payment %s was received for this order while it was in the trash. It was taken out of the trash."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:181
 #, php-format
 msgid "Zeny payment %s was received after the order was cancelled."
 msgstr ""
 
-#: src/WooCommerce/OrderCompleter.php:178
+#: src/WooCommerce/OrderCompleter.php:183
 msgid "The order was not marked paid. Check the payment in the Zeny dashboard, then complete or refund it."
 msgstr ""
 

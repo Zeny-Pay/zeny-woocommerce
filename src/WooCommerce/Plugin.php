@@ -33,6 +33,7 @@ final class Plugin {
 		add_filter( 'woocommerce_payment_gateways', array( self::class, 'addGateway' ) );
 		add_action( 'woocommerce_blocks_payment_method_type_registration', array( self::class, 'registerBlocks' ) );
 		add_action( 'woocommerce_order_status_cancelled', array( self::class, 'onOrderCancelled' ), 10, 2 );
+		add_filter( 'woocommerce_cancel_unpaid_order', array( UnpaidOrderGuard::class, 'filter' ), 10, 2 );
 		add_action( 'admin_notices', array( AdminNotices::class, 'render' ) );
 		add_action( 'wp_ajax_' . SettingsPanel::AJAX_ACTION, array( SettingsPanel::class, 'ajaxTestConnection' ) );
 		add_action( 'rest_api_init', array( WebhookController::class, 'register' ) );

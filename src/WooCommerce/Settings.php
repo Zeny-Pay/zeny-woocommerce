@@ -169,7 +169,7 @@ final class Settings {
 			'link_lifetime'         => array(
 				'title'             => __( 'Link lifetime (minutes)', 'zeny' ),
 				'type'              => 'number',
-				'description'       => __( 'How long a shopper has to pay, from 15 minutes to 7 days (10080 minutes).', 'zeny' ),
+				'description'       => __( 'How long a shopper has to pay, from 15 minutes to 7 days (10080 minutes). Stock stays held for an unpaid order while its link is open, even past the WooCommerce hold stock time; the order is cancelled once the link expires.', 'zeny' ),
 				'default'           => (string) self::DEFAULT_LIFETIME,
 				'custom_attributes' => array(
 					'min'  => (string) LinkSpec::MIN_LIFETIME_MINUTES,

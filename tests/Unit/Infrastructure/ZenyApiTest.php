@@ -24,9 +24,13 @@ final class ZenyApiTest extends TestCase {
 	/** @var list<int> */
 	private $sleeps = array();
 
+	/** @var float */
+	private $clock = 1000.0;
+
 	protected function setUp(): void {
 		$this->transport = new FakeTransport();
 		$this->sleeps    = array();
+		$this->clock     = 1000.0;
 	}
 
 	public function test_create_posts_the_body_with_auth_and_idempotency_key(): void {
@@ -305,6 +309,74 @@ final class ZenyApiTest extends TestCase {
 		);
 	}
 
+	public function test_checkout_limits_allow_one_retry(): void {
+		$this->transport->fail( 'timeout' )->fail( 'timeout' )->fail( 'timeout' );
+		try {
+			$this->api()->withCheckoutLimits()->createPaymentLink( array(), IdempotencyKey::parse( 'k' ) );
+			$this->fail( 'expected ZenyApiException' );
+		} catch ( ZenyApiException $e ) {
+			$this->assertCount( 2, $this->transport->requests );
+		}
+	}
+
+	public function test_checkout_limits_cap_retry_after_at_5_seconds(): void {
+		$this->transport->respond( 429, array(), array( 'retry-after' => '30' ) )->respond( 201, self::LINK );
+		$this->api()->withCheckoutLimits()->createPaymentLink( array(), IdempotencyKey::parse( 'k' ) );
+		$this->assertSame( array( 5000 ), $this->sleeps );
+	}
+
+	public function test_checkout_limits_keep_every_call_inside_the_budget(): void {
+		// Each request takes 12 s; the budget is 20 s.
+		$this->transport->onSend = function (): void {
+			$this->clock += 12;
+		};
+		$this->transport->respond( 503, array() )->respond( 503, array() )->respond( 200, self::LINK );
+		$api = $this->api()->withCheckoutLimits();
+
+		try {
+			$api->createPaymentLink( array(), IdempotencyKey::parse( 'k' ) );
+			$this->fail( 'expected ZenyApiException' );
+		} catch ( ZenyApiException $e ) {
+			$this->assertCount( 2, $this->transport->requests );
+			$this->assertSame( 20, $this->transport->requests[0]['timeout'] );
+			// The retry may only use what is left: 20 - 12 - 0.25 s of backoff.
+			$this->assertLessThanOrEqual( 8, $this->transport->requests[1]['timeout'] );
+		}
+
+		// The budget is spent: a further call fails without being sent.
+		try {
+			$api->retrievePaymentLink( 'pl_1' );
+			$this->fail( 'expected ZenyApiException' );
+		} catch ( ZenyApiException $e ) {
+			$this->assertCount( 2, $this->transport->requests );
+			$this->assertSame( 'timeout', $e->errorCode() );
+			$this->assertNull( $e->statusCode() );
+		}
+	}
+
+	public function test_no_retry_when_the_wait_would_pass_the_budget(): void {
+		$this->transport->respond( 429, array(), array( 'retry-after' => '5' ) )->respond( 201, self::LINK );
+		$this->transport->onSend = function (): void {
+			$this->clock += 16;
+		};
+		$this->expectException( ZenyApiException::class );
+		try {
+			$this->api()->withCheckoutLimits()->createPaymentLink( array(), IdempotencyKey::parse( 'k' ) );
+		} finally {
+			$this->assertCount( 1, $this->transport->requests );
+			$this->assertSame( array(), $this->sleeps );
+		}
+	}
+
+	public function test_normal_policy_is_unchanged_by_a_checkout_copy(): void {
+		$api = $this->api();
+		$api->withCheckoutLimits();
+		$this->transport->fail( 'timeout' )->fail( 'timeout' )->respond( 200, self::LINK );
+		$api->retrievePaymentLink( 'pl_1' );
+		$this->assertCount( 3, $this->transport->requests );
+		$this->assertSame( 30, $this->transport->requests[0]['timeout'] );
+	}
+
 	public function test_mode_follows_the_key(): void {
 		$this->assertSame( 'test', $this->api()->mode() );
 		$this->assertSame( 'live', $this->api( 'sk_live_x' )->mode() );
@@ -318,9 +390,13 @@ final class ZenyApiTest extends TestCase {
 			$base_url,
 			function ( int $ms ): void {
 				$this->sleeps[] = $ms;
+				$this->clock   += $ms / 1000;
 			},
 			static function (): float {
 				return 0.5;
+			},
+			function (): float {
+				return $this->clock;
 			}
 		);
 	}

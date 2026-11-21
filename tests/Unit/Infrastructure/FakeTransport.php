@@ -18,6 +18,13 @@ final class FakeTransport implements Transport {
 	public $requests = array();
 
 	/**
+	 * Called on every send, to let a test move its clock.
+	 *
+	 * @var callable|null
+	 */
+	public $onSend;
+
+	/**
 	 * @param array<string, string> $headers
 	 * @param array<mixed>|string   $body
 	 */
@@ -39,6 +46,9 @@ final class FakeTransport implements Transport {
 			'body'    => $body,
 			'timeout' => $timeout_sec,
 		);
+		if ( null !== $this->onSend ) {
+			( $this->onSend )();
+		}
 		$next = array_shift( $this->queue );
 		if ( null === $next ) {
 			throw new \LogicException( 'FakeTransport: no response queued' );

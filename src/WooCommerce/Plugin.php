@@ -124,7 +124,7 @@ final class Plugin {
 		if ( null === $api ) {
 			return null;
 		}
-		return new LinkCheckout( $api, self::settings(), new OrderLinks(), new OrderLock(), self::logger(), self::siteHash() );
+		return new LinkCheckout( $api->withCheckoutLimits(), self::settings(), new OrderLinks(), new OrderLock(), self::logger(), self::siteHash() );
 	}
 
 	/**

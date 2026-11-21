@@ -27,6 +27,11 @@ final class ZenyApi {
 	private const TIMEOUT_SEC = 30;
 	private const LOOPBACK    = array( 'localhost', '127.0.0.1', '[::1]' );
 
+	// Checkout runs while the shopper waits and while the order is locked: about 20 s in all.
+	public const CHECKOUT_BUDGET_SEC           = 20;
+	private const CHECKOUT_MAX_RETRIES         = 1;
+	private const CHECKOUT_MAX_RETRY_AFTER_SEC = 5;
+
 	/**
 	 * Secret key.
 	 *
@@ -70,6 +75,34 @@ final class ZenyApi {
 	private $random;
 
 	/**
+	 * Returns the current time in seconds.
+	 *
+	 * @var callable(): float
+	 */
+	private $now;
+
+	/**
+	 * Retries after the first try.
+	 *
+	 * @var int
+	 */
+	private $maxRetries = RetryPolicy::MAX_RETRIES;
+
+	/**
+	 * Longest Retry-After honoured, in seconds.
+	 *
+	 * @var int
+	 */
+	private $maxRetryAfterSec = RetryPolicy::MAX_RETRY_AFTER_SEC;
+
+	/**
+	 * Time (as now() reads it) after which no request is sent, or null for none.
+	 *
+	 * @var float|null
+	 */
+	private $deadline;
+
+	/**
 	 * Builds the client.
 	 *
 	 * @param ApiKey                   $key        Secret key; its prefix picks the host.
@@ -78,9 +111,10 @@ final class ZenyApi {
 	 * @param string|null              $base_url   Host override: https, or http on a loopback host.
 	 * @param callable(int): void|null $sleep      Sleep in milliseconds; for tests.
 	 * @param callable(): float|null   $random     Random number in [0, 1); for tests.
+	 * @param callable(): float|null   $now        Current time in seconds; for tests.
 	 * @throws InvalidArgumentException When $base_url is not allowed.
 	 */
-	public function __construct( ApiKey $key, Transport $transport, string $user_agent, ?string $base_url = null, ?callable $sleep = null, ?callable $random = null ) {
+	public function __construct( ApiKey $key, Transport $transport, string $user_agent, ?string $base_url = null, ?callable $sleep = null, ?callable $random = null, ?callable $now = null ) {
 		$this->key       = $key;
 		$this->transport = $transport;
 		$this->userAgent = $user_agent;
@@ -91,6 +125,22 @@ final class ZenyApi {
 		$this->random    = $random ?? static function (): float {
 			return random_int( 0, 999999 ) / 1000000;
 		};
+		$this->now       = $now ?? static function (): float {
+			return microtime( true );
+		};
+	}
+
+	/**
+	 * A copy for checkout: every call it makes, retries and waits included,
+	 * ends within CHECKOUT_BUDGET_SEC from now, with at most one retry and a
+	 * Retry-After of at most 5 s. Webhook and admin calls keep the normal policy.
+	 */
+	public function withCheckoutLimits(): self {
+		$copy                   = clone $this;
+		$copy->maxRetries       = self::CHECKOUT_MAX_RETRIES;
+		$copy->maxRetryAfterSec = self::CHECKOUT_MAX_RETRY_AFTER_SEC;
+		$copy->deadline         = ( $this->now )() + self::CHECKOUT_BUDGET_SEC;
+		return $copy;
 	}
 
 	/**
@@ -173,8 +223,12 @@ final class ZenyApi {
 		$headers = $this->headers( null !== $raw, $key );
 		for ( $attempt = 0; ; $attempt++ ) {
 			$retry_after = null;
+			$timeout     = $this->timeoutSec();
+			if ( null === $timeout ) {
+				throw new ZenyApiException( 'connection_error', 'timeout', 'The time for this request ran out before it was sent.', null, null, null === $key ? null : $key->value() );
+			}
 			try {
-				$response = $this->transport->send( $method, $this->baseUrl . self::PREFIX . $path, $headers, $raw, self::TIMEOUT_SEC );
+				$response = $this->transport->send( $method, $this->baseUrl . self::PREFIX . $path, $headers, $raw, $timeout );
 				$decoded  = json_decode( $response->body(), true );
 				$status   = $response->status();
 				if ( $status >= 200 && $status < 300 && self::isObject( $decoded ) ) {
@@ -192,11 +246,28 @@ final class ZenyApi {
 					null === $key ? null : $key->value()
 				);
 			}
-			if ( $attempt >= RetryPolicy::MAX_RETRIES || ! RetryPolicy::isRetryable( $error->statusCode(), $error->errorCode() ) ) {
+			if ( $attempt >= $this->maxRetries || ! RetryPolicy::isRetryable( $error->statusCode(), $error->errorCode() ) ) {
 				throw $error;
 			}
-			( $this->sleep )( RetryPolicy::delayMs( $attempt, $retry_after, ( $this->random )() ) );
+			$delay = RetryPolicy::delayMs( $attempt, null === $retry_after ? null : min( $retry_after, $this->maxRetryAfterSec ), ( $this->random )() );
+			// No point waiting when the retry could not get a second of its own afterwards.
+			if ( null !== $this->deadline && ( $this->now )() + $delay / 1000 + 1 > $this->deadline ) {
+				throw $error;
+			}
+			( $this->sleep )( $delay );
 		}
+	}
+
+	/**
+	 * Timeout for the next request: 30 s, or what is left of the deadline.
+	 * Null when less than a second is left.
+	 */
+	private function timeoutSec(): ?int {
+		if ( null === $this->deadline ) {
+			return self::TIMEOUT_SEC;
+		}
+		$left = (int) floor( $this->deadline - ( $this->now )() );
+		return $left < 1 ? null : min( self::TIMEOUT_SEC, $left );
 	}
 
 	/**

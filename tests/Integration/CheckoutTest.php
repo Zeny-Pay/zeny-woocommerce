@@ -114,6 +114,74 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertSame( array(), StubZeny::creates() );
 	}
 
+	// Checkout holds the order lock while the shopper waits: one retry at most.
+	public function test_checkout_retries_a_create_once(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 503, 5 );
+		$this->assertSame( 'failure', $this->gateway()->process_payment( $this->order()->get_id() )['result'] );
+		$this->assertCount( 2, StubZeny::creates() );
+	}
+
+	public function test_stale_lock_is_taken_over_and_a_fresh_one_is_not(): void {
+		$this->insertLock( 99002, time() - 61, 'crashed' );
+		$this->assertTrue( ( new OrderLock( 0 ) )->acquire( 99002 ), 'a lock older than 60 s is taken over' );
+		( new OrderLock( 0 ) )->release( 99002 );
+
+		$this->insertLock( 99003, time() - 50, 'busy' );
+		$this->assertFalse( ( new OrderLock( 0 ) )->acquire( 99003 ), 'a lock younger than 60 s blocks' );
+		$this->deleteLock( 99003 );
+	}
+
+	public function test_only_the_owner_releases_the_lock(): void {
+		$owner = new OrderLock( 0 );
+		$other = new OrderLock( 0 );
+		$this->assertTrue( $owner->acquire( 99004 ) );
+
+		$other->release( 99004 );
+		$this->assertFalse( ( new OrderLock( 0 ) )->acquire( 99004 ), 'another owner cannot release it' );
+
+		$owner->release( 99004 );
+		$this->assertTrue( ( new OrderLock( 0 ) )->acquire( 99004 ) );
+		$this->deleteLock( 99004 );
+	}
+
+	public function test_an_owner_whose_lock_was_taken_over_does_not_release_the_new_owner(): void {
+		$slow = new OrderLock( 0 );
+		$this->assertTrue( $slow->acquire( 99005 ) );
+		$this->ageLock( 99005, 61 );
+
+		$next = new OrderLock( 0 );
+		$this->assertTrue( $next->acquire( 99005 ) );
+		$slow->release( 99005 );
+		$this->assertFalse( ( new OrderLock( 0 ) )->acquire( 99005 ), 'the new owner still holds it' );
+		$next->release( 99005 );
+	}
+
+	private function insertLock( int $order_id, int $time, string $token ): void {
+		global $wpdb;
+		$this->deleteLock( $order_id );
+		$wpdb->insert(
+			$wpdb->options,
+			array(
+				'option_name'  => 'zeny_order_lock_' . $order_id,
+				'option_value' => $time . '|' . $token,
+				'autoload'     => 'off',
+			)
+		);
+	}
+
+	private function ageLock( int $order_id, int $seconds ): void {
+		global $wpdb;
+		$name  = 'zeny_order_lock_' . $order_id;
+		$value = (string) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+		$parts = explode( '|', $value, 2 );
+		$wpdb->update( $wpdb->options, array( 'option_value' => ( (int) $parts[0] - $seconds ) . '|' . ( $parts[1] ?? '' ) ), array( 'option_name' => $name ) );
+	}
+
+	private function deleteLock( int $order_id ): void {
+		global $wpdb;
+		$wpdb->delete( $wpdb->options, array( 'option_name' => 'zeny_order_lock_' . $order_id ) );
+	}
+
 	public function test_order_lock_is_exclusive_and_released(): void {
 		$lock = new OrderLock( 0 );
 		$this->assertTrue( $lock->acquire( 99001 ) );

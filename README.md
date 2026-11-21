@@ -50,7 +50,9 @@ orders to be marked paid on their own.
 
 1. At checkout the plugin creates one payment link for the order, for the
    order total, and sends the shopper to it. Paying again for the same order
-   reuses the link while it is active.
+   reuses the link while it is active. If the order total changed (the
+   shopper went back and changed the cart), the old link is canceled and a new
+   one is made.
 2. The shopper pays on the Zeny page and returns to the order-received page,
    which shows "We are confirming your payment" until the order is paid.
 3. Zeny sends `payment.paid`. The plugin checks the signature, that the
@@ -59,6 +61,9 @@ orders to be marked paid on their own.
    is marked paid. Anything else puts the order **on hold** with a note.
 
 When WooCommerce cancels an unpaid order, its payment link is canceled too.
+WooCommerce's hold-stock timeout does not cancel an order while its link is
+still open, so stock stays held until the link expires; the order is
+cancelled on a later pass after that.
 
 If a webhook never arrives, open the order, enter the Zeny payment id
 (`pay_…`) in the **Zeny** box and click **Confirm payment**. The plugin reads

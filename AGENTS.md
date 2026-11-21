@@ -51,15 +51,28 @@ languages/             zeny.pot and the Indonesian translation
 
 - **Never mark an order paid without a verified signal**: a webhook whose
   signature checks out, or a payment read from the API. The payment must name
-  the order's link, carry the order total in IDR, be `paid` and match the key's
-  mode. Anything else puts the order on hold with a note.
-- **No money moves twice.** Every POST carries an `Idempotency-Key` that is
-  reused on every retry. The checkout key is `wc-<site hash>-<order id>-<attempt>`;
-  the attempt only moves on once the previous link is expired or canceled.
+  one of the order's links, carry the order total in IDR, be `paid` and match
+  the key's mode. Anything else puts the order on hold with a note.
+- **No money moves twice, and no link is lost.** Every POST carries an
+  `Idempotency-Key` that is reused on every retry. The checkout key is
+  `wc-<site hash>-<order id>-<attempt>`. The attempt moves on only when a
+  create was definitely refused, or the current link expired, belongs to the
+  other environment, or asks for an old total (it is canceled first). A failed
+  read never drops a link, and an order keeps every link id it ever had
+  (`_zeny_payment_link` rows) so a late payment through any of them finds it.
+  A stored create is replayed only for the same amount and within 23 hours.
 - Retry only network errors, timeouts, 429, 5xx and `409 idempotency_key_in_progress`,
   at most twice, with jittered backoff and `Retry-After` capped at 60 s.
-- The webhook answers `200` only after the order is saved, and `500` when it
-  cannot be (so Zeny retries).
+  Checkout is stricter (`ZenyApi::withCheckoutLimits()`): one retry,
+  `Retry-After` capped at 5 s, about 20 s in all, because it holds the order lock.
+- The order lock (`OrderLock`) stores an owner token and is stale after 60 s,
+  above the longest checkout; only its owner releases it.
+- The webhook answers `200` only after the order is saved, `200` with
+  `ignored: unknown_link` for a link no order holds (the shopper only gets a
+  URL after the order stores the link), and `500` when it cannot act yet (so
+  Zeny retries).
+- An unpaid Zeny order is kept from the hold-stock cancellation while its
+  link is open (`UnpaidOrderGuard`).
 - **Secrets are never logged or echoed.** The API key and webhook secret are
   masked in `__toString`/`__debugInfo` and never rendered back into settings HTML.
 - Orders through `wc_get_order` and the order meta API only, never post meta.

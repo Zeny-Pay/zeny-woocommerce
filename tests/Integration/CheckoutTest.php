@@ -205,6 +205,42 @@ final class CheckoutTest extends IntegrationTestCase {
 		$new = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
 		$this->assertNotSame( $old, $new );
 		$this->assertSame( 'https://pay.zeny.test/l/' . $new, $result['redirect'] );
+		// An expired link takes no payment, so it is left alone, not canceled.
+		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links/' . $old . '/cancel' ) );
+	}
+
+	// After a switch from a Sandbox to a Production key, the Sandbox link is neither read nor canceled.
+	public function test_key_switched_to_the_other_environment_starts_a_new_link(): void {
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		$old = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		$this->configure( array( 'api_key' => 'sk_live_good' ) );
+
+		$this->gateway()->process_payment( $order->get_id() );
+
+		$order = $this->reload( $order );
+		$this->assertSame( 'live', $order->get_meta( '_zeny_mode' ) );
+		$this->assertNotSame( $old, $order->get_meta( '_zeny_payment_link_id' ) );
+		$this->assertSame( array(), StubZeny::requests( 'GET', '/payment-links/' . $old ) );
+		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links/' . $old . '/cancel' ) );
+		$this->assertContains( $old, ( new \Zeny\WooCommerce\WooCommerce\OrderLinks() )->linkIds( $order ) );
+	}
+
+	public function test_stored_request_about_to_expire_starts_a_new_attempt(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 503, 5 );
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		StubZeny::reset_failures();
+		$order                        = $this->reload( $order );
+		$request                      = $order->get_meta( '_zeny_link_request' );
+		$request['body']['expiresAt'] = gmdate( 'Y-m-d\TH:i:s\Z', time() + 30 );
+		$order->update_meta_data( '_zeny_link_request', $request );
+		$order->save();
+
+		$this->gateway()->process_payment( $order->get_id() );
+
+		$creates = StubZeny::creates();
+		$this->assertStringEndsWith( '-2', (string) end( $creates )['key'] );
 	}
 
 	/**

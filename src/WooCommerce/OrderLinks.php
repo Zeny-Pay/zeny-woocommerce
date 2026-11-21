@@ -24,6 +24,8 @@ final class OrderLinks {
 	public const EVENTS       = '_zeny_event_ids';
 	// One meta row per link the order ever had, so a payment through any of them finds the order.
 	public const ALL_LINKS = '_zeny_payment_link';
+	// Link id => mode it was created in, so only links this key can reach are acted on.
+	public const LINK_MODES = '_zeny_link_modes';
 
 	// Enough to recognise a redelivery; an order sees a handful of events.
 	private const EVENTS_KEPT = 50;
@@ -72,6 +74,20 @@ final class OrderLinks {
 	}
 
 	/**
+	 * Mode a link was created in, "" when unknown.
+	 *
+	 * @param WC_Order $order   Order.
+	 * @param string   $link_id Link id.
+	 */
+	public function linkMode( WC_Order $order, string $link_id ): string {
+		$modes = $order->get_meta( self::LINK_MODES );
+		if ( is_array( $modes ) && is_string( $modes[ $link_id ] ?? null ) ) {
+			return $modes[ $link_id ];
+		}
+		return $link_id === $this->linkId( $order ) ? $this->mode( $order ) : '';
+	}
+
+	/**
 	 * When the current link stops taking payments (Unix time), or null when unknown or never.
 	 *
 	 * @param WC_Order $order Order.
@@ -112,6 +128,10 @@ final class OrderLinks {
 		if ( ! in_array( $id, $this->linkIds( $order ), true ) ) {
 			$order->add_meta_data( self::ALL_LINKS, $id );
 		}
+		$modes        = $order->get_meta( self::LINK_MODES );
+		$modes        = is_array( $modes ) ? $modes : array();
+		$modes[ $id ] = $mode;
+		$order->update_meta_data( self::LINK_MODES, $modes );
 		$order->update_meta_data( self::LINK_ID, $id );
 		$order->update_meta_data( self::LINK_URL, $url );
 		if ( null === $expires_at ) {

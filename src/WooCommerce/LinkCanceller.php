@@ -55,15 +55,34 @@ final class LinkCanceller {
 	}
 
 	/**
-	 * Cancels the order's link, if it has one in the key's environment.
+	 * Cancels every link the order had in the key's environment: a replaced
+	 * link whose cancel failed earlier may still take a payment. Links of the
+	 * other environment cannot be reached with this key and are skipped.
 	 *
 	 * @param WC_Order $order Cancelled order.
 	 */
 	public function cancel( WC_Order $order ): void {
-		$link_id = $this->links->linkId( $order );
-		if ( Gateway::ID !== $order->get_payment_method() || '' === $link_id || $this->links->mode( $order ) !== $this->api->mode() ) {
+		if ( Gateway::ID !== $order->get_payment_method() ) {
 			return;
 		}
+		$current = $this->links->linkId( $order );
+		foreach ( $this->links->linkIds( $order ) as $link_id ) {
+			if ( $this->links->linkMode( $order, $link_id ) === $this->api->mode() ) {
+				$this->cancelOne( $order, $link_id, $link_id === $current );
+			}
+		}
+	}
+
+	/**
+	 * Cancels one link, best effort. Only the current link gets a note when the
+	 * cancel fails for another reason than a payment: older links are mostly
+	 * expired or canceled already, and the failure is logged either way.
+	 *
+	 * @param WC_Order $order   Order.
+	 * @param string   $link_id Link id.
+	 * @param bool     $current Whether it is the order's current link.
+	 */
+	private function cancelOne( WC_Order $order, string $link_id, bool $current ): void {
 		try {
 			$this->api->cancelPaymentLink( $link_id );
 			/* translators: %s: payment link id. */
@@ -78,12 +97,13 @@ final class LinkCanceller {
 					'requestId' => $e->requestId(),
 				)
 			);
-			$note = 'payment_link_has_payments' === $e->errorCode()
+			if ( 'payment_link_has_payments' === $e->errorCode() ) {
 				/* translators: %s: payment link id. */
-				? __( 'Zeny payment link %s took a payment, so it was not canceled. Check the payment in the Zeny dashboard and refund it there if needed.', 'zeny' )
+				$order->add_order_note( sprintf( __( 'Zeny payment link %s took a payment, so it was not canceled. Check the payment in the Zeny dashboard and refund it there if needed.', 'zeny' ), $link_id ) );
+			} elseif ( $current ) {
 				/* translators: %s: payment link id. */
-				: __( 'Zeny could not cancel payment link %s. It stops taking payments when it expires.', 'zeny' );
-			$order->add_order_note( sprintf( $note, $link_id ) );
+				$order->add_order_note( sprintf( __( 'Zeny could not cancel payment link %s. It stops taking payments when it expires.', 'zeny' ), $link_id ) );
+			}
 		}
 	}
 }

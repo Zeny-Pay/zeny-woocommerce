@@ -295,6 +295,37 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links/' . $old . '/cancel' ) );
 	}
 
+	public function test_cancelling_an_order_cancels_every_link_it_had(): void {
+		$order = $this->order( '150000' );
+		$this->gateway()->process_payment( $order->get_id() );
+		$first = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		// The replace-time cancel fails, so the first link is still active.
+		StubZeny::failNext( 'POST', '/payment-links/' . $first . '/cancel', 500, 5 );
+		$this->resumeWithNewTotal( $order, '90000' );
+		$this->gateway()->process_payment( $order->get_id() );
+		$second = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		StubZeny::reset_failures();
+
+		$this->reload( $order )->update_status( 'cancelled' );
+
+		$this->assertSame( 'canceled', StubZeny::link( $first )['status'] );
+		$this->assertSame( 'canceled', StubZeny::link( $second )['status'] );
+	}
+
+	public function test_cancelling_an_order_skips_links_of_the_other_environment(): void {
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		$sandbox = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		$this->configure( array( 'api_key' => 'sk_live_good' ) );
+		$this->gateway()->process_payment( $order->get_id() );
+		$live = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+
+		$this->reload( $order )->update_status( 'cancelled' );
+
+		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links/' . $sandbox . '/cancel' ) );
+		$this->assertSame( 'canceled', StubZeny::link( $live )['status'] );
+	}
+
 	// A resumed order (cart changed, same order id) must not keep the old amount.
 	public function test_resumed_order_with_a_new_total_cancels_the_old_link_and_creates_a_new_one(): void {
 		$order = $this->order( '150000' );

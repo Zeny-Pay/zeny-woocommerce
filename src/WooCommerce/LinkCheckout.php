@@ -142,7 +142,7 @@ final class LinkCheckout {
 
 	/**
 	 * Where to send the shopper for an existing link, or null to make a new one.
-	 * A read error propagates and leaves the link in place.
+	 * A 404 drops the link; any other read error propagates and leaves it in place.
 	 *
 	 * @param WC_Order $order   Order.
 	 * @param string   $link_id Stored link id.
@@ -154,7 +154,24 @@ final class LinkCheckout {
 			$this->abandon( $order, $link_id, false );
 			return null;
 		}
-		$link = $this->api->retrievePaymentLink( $link_id );
+		try {
+			$link = $this->api->retrievePaymentLink( $link_id );
+		} catch ( ZenyApiException $e ) {
+			if ( 404 !== $e->statusCode() ) {
+				throw $e;
+			}
+			// This key cannot reach the link (it belongs to another project): it is gone for
+			// this shop. Its id stays in the order's link list, so a payment through it still finds the order.
+			$this->logger->error(
+				'The stored payment link is not found with this key; starting a new one.',
+				array(
+					'order' => $order->get_id(),
+					'link'  => $link_id,
+				)
+			);
+			$this->abandon( $order, $link_id, false );
+			return null;
+		}
 		if ( (int) ( $link['paidCount'] ?? 0 ) > 0 ) {
 			// Paid, and the webhook is on its way: never take a second payment.
 			return $order->get_checkout_order_received_url();

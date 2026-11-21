@@ -272,9 +272,27 @@ final class CheckoutTest extends IntegrationTestCase {
 		return array(
 			'rate limited' => array( 429, 'rate_limited' ),
 			'auth'         => array( 401, 'token_invalid' ),
-			'not found'    => array( 404, 'not_found' ),
 			'server'       => array( 500, 'internal_error' ),
 		);
+	}
+
+	// A 404 means this key cannot reach the link (another project): it is gone for this shop.
+	public function test_stored_link_not_found_starts_a_new_attempt_and_keeps_its_id(): void {
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		$old = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		StubZeny::failNext( 'GET', '/payment-links/' . $old, 404, 5, false, 'not_found' );
+
+		$result = $this->gateway()->process_payment( $order->get_id() );
+
+		$this->assertSame( 'success', $result['result'] );
+		$creates = StubZeny::creates();
+		$this->assertCount( 2, $creates );
+		$this->assertStringEndsWith( '-2', (string) $creates[1]['key'] );
+		$order = $this->reload( $order );
+		$this->assertNotSame( $old, $order->get_meta( '_zeny_payment_link_id' ) );
+		$this->assertContains( $old, ( new \Zeny\WooCommerce\WooCommerce\OrderLinks() )->linkIds( $order ) );
+		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links/' . $old . '/cancel' ) );
 	}
 
 	// A resumed order (cart changed, same order id) must not keep the old amount.

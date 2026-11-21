@@ -158,14 +158,15 @@ final class LinkSpec {
 	}
 
 	/**
-	 * One line of at most $max characters, trimmed, without control characters
-	 * (the API refuses them).
+	 * One line of at most $max characters, trimmed, valid UTF-8, without
+	 * control characters (the API refuses them).
 	 *
 	 * @param string $text Input.
 	 * @param int    $max  Character limit.
 	 */
 	private static function clip( string $text, int $max ): string {
-		$line = preg_replace( '/[\p{Cc}\s]+/u', ' ', $text );
+		// Invalid UTF-8 would make the pattern below fail and the JSON body unencodable.
+		$line = preg_replace( '/[\p{Cc}\s]+/u', ' ', mb_scrub( $text, 'UTF-8' ) );
 		return trim( mb_substr( trim( (string) $line ), 0, $max ) );
 	}
 

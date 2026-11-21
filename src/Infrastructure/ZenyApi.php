@@ -8,6 +8,7 @@
 namespace Zeny\WooCommerce\Infrastructure;
 
 use InvalidArgumentException;
+use JsonException;
 use Zeny\WooCommerce\Domain\ApiKey;
 use Zeny\WooCommerce\Domain\IdempotencyKey;
 
@@ -157,9 +158,10 @@ final class ZenyApi {
 	 * @param IdempotencyKey       $key  Idempotency-Key.
 	 * @return array<mixed> PaymentLink.
 	 * @throws ZenyApiException When the call fails.
+	 * @throws JsonException When the body cannot be encoded; nothing was sent.
 	 */
 	public function createPaymentLink( array $body, IdempotencyKey $key ): array {
-		return $this->request( 'POST', '/payment-links', $body, $key );
+		return $this->request( 'POST', '/payment-links', self::encode( $body ), $key );
 	}
 
 	/**
@@ -182,7 +184,7 @@ final class ZenyApi {
 	 */
 	public function cancelPaymentLink( string $id ): array {
 		$path = '/payment-links/' . self::id( $id, 'pl_' ) . '/cancel';
-		return $this->request( 'POST', $path, array(), IdempotencyKey::parse( self::uuid() ) );
+		return $this->request( 'POST', $path, '{}', IdempotencyKey::parse( self::uuid() ) );
 	}
 
 	/**
@@ -212,14 +214,12 @@ final class ZenyApi {
 	 *
 	 * @param string              $method HTTP method.
 	 * @param string              $path   Path below /api/merchant/v1.
-	 * @param array<mixed>|null   $body   JSON body for a POST.
+	 * @param string|null         $raw    Encoded JSON body for a POST, sent the same on every retry.
 	 * @param IdempotencyKey|null $key    Idempotency-Key for a POST.
 	 * @return array<mixed>
 	 * @throws ZenyApiException When the call fails.
 	 */
-	private function request( string $method, string $path, ?array $body = null, ?IdempotencyKey $key = null ): array {
-		// Encoded once, so every retry sends the same bytes with the same key.
-		$raw     = null === $body ? null : self::encode( $body );
+	private function request( string $method, string $path, ?string $raw = null, ?IdempotencyKey $key = null ): array {
 		$headers = $this->headers( null !== $raw, $key );
 		for ( $attempt = 0; ; $attempt++ ) {
 			$retry_after = null;
@@ -337,13 +337,18 @@ final class ZenyApi {
 	 * JSON-encodes a body; an empty one is "{}".
 	 *
 	 * @param array<mixed> $body Body.
+	 * @throws JsonException When the body holds invalid UTF-8.
 	 */
 	private static function encode( array $body ): string {
 		if ( array() === $body ) {
 			return '{}';
 		}
 		// The client runs without WordPress in tests, so it cannot use wp_json_encode.
-		return (string) json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		$json = json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		if ( false === $json ) {
+			throw new JsonException( json_last_error_msg() );
+		}
+		return $json;
 	}
 
 	/**

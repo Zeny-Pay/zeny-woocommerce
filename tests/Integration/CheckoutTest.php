@@ -450,6 +450,60 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertCount( 1, array_unique( array_column( StubZeny::creates(), 'key' ) ) );
 	}
 
+	public function test_invalid_utf8_item_name_is_cleaned_before_sending(): void {
+		$order = $this->order();
+		// Through the getter: the database would refuse to store invalid bytes.
+		$bad = static function (): string {
+			return "Kopi \xC3\x28 Susu";
+		};
+		add_filter( 'woocommerce_order_item_get_name', $bad );
+		try {
+			$result = $this->gateway()->process_payment( $order->get_id() );
+		} finally {
+			remove_filter( 'woocommerce_order_item_get_name', $bad );
+		}
+		$this->assertSame( 'success', $result['result'] );
+		$description = StubZeny::creates()[0]['body']['description'];
+		$this->assertTrue( mb_check_encoding( $description, 'UTF-8' ) );
+		$this->assertStringStartsWith( 'Kopi', $description );
+		$this->assertStringEndsWith( 'Susu', $description );
+	}
+
+	public function test_very_long_item_name_is_cut_to_500_characters(): void {
+		$product = new \WC_Product_Simple();
+		$product->set_name( str_repeat( 'Kopi Susu Gula Aren ', 200 ) );
+		$product->set_regular_price( '150000' );
+		$product->save();
+		$order = wc_create_order();
+		$order->add_product( $product, 1 );
+		$order->set_currency( 'IDR' );
+		$order->set_payment_method( 'zeny' );
+		$order->calculate_totals( false );
+		$order->save();
+
+		$this->assertSame( 'success', $this->gateway()->process_payment( $order->get_id() )['result'] );
+		$this->assertLessThanOrEqual( 500, mb_strlen( StubZeny::creates()[0]['body']['description'] ) );
+	}
+
+	// A body that cannot be JSON-encoded is a checkout error, never a fatal.
+	public function test_unencodable_request_is_a_checkout_error(): void {
+		update_option( 'home', 'https://shop.example' );
+		update_option( 'siteurl', 'https://shop.example' );
+		$order = $this->order();
+		$bad   = static function (): string {
+			return "https://shop.example/thanks/\xFF";
+		};
+		add_filter( 'woocommerce_get_checkout_order_received_url', $bad );
+		try {
+			$result = $this->gateway()->process_payment( $order->get_id() );
+		} finally {
+			remove_filter( 'woocommerce_get_checkout_order_received_url', $bad );
+		}
+		$this->assertSame( 'failure', $result['result'] );
+		$this->assertCount( 1, wc_get_notices( 'error' ) );
+		$this->assertSame( array(), StubZeny::creates() );
+	}
+
 	public function test_cancelling_an_unpaid_order_cancels_its_link(): void {
 		$order = $this->order();
 		$this->gateway()->process_payment( $order->get_id() );

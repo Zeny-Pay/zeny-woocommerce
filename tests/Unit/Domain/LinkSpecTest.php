@@ -90,6 +90,21 @@ final class LinkSpecTest extends TestCase {
 		$this->assertSame( str_repeat( 'a', 119 ), $body['name'] );
 	}
 
+	public function test_invalid_utf8_never_reaches_the_body(): void {
+		$body = $this->spec(
+			array(
+				'name'  => "Order #1 \xC3\x28 Kopi",
+				'items' => array( "Susu \xFF\xFE", 'Roti' ),
+			)
+		)->toRequestBody( self::NOW );
+
+		$this->assertTrue( mb_check_encoding( $body['name'], 'UTF-8' ) );
+		$this->assertTrue( mb_check_encoding( $body['description'], 'UTF-8' ) );
+		$this->assertStringStartsWith( 'Order #1', $body['name'] );
+		$this->assertStringEndsWith( 'Roti', $body['description'] );
+		$this->assertNotFalse( json_encode( $body ) );
+	}
+
 	public function test_empty_name_is_rejected(): void {
 		$this->expectException( InvalidArgumentException::class );
 		$this->spec( array( 'name' => " \n " ) );

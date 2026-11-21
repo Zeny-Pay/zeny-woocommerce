@@ -8,6 +8,7 @@
 namespace Zeny\WooCommerce\WooCommerce;
 
 use InvalidArgumentException;
+use JsonException;
 use WC_Order;
 use Zeny\WooCommerce\Domain\IdempotencyKey;
 use Zeny\WooCommerce\Domain\LinkSpec;
@@ -112,7 +113,7 @@ final class LinkCheckout {
 			return $this->reuseOrCreate( $order );
 		} catch ( ZenyApiException $e ) {
 			throw $this->apiFailure( $order, $e );
-		} catch ( InvalidArgumentException $e ) {
+		} catch ( InvalidArgumentException | JsonException $e ) {
 			$this->logger->error( 'Could not build the payment link.', array( 'order' => $order->get_id() ) );
 			throw new CheckoutFailed( __( 'We could not start the Zeny payment for this order. Contact us to complete your order.', 'zeny' ) );
 		} finally {
@@ -126,6 +127,7 @@ final class LinkCheckout {
 	 * @param WC_Order $order Order.
 	 * @throws ZenyApiException When an API call fails.
 	 * @throws InvalidArgumentException When the order cannot be turned into a link.
+	 * @throws JsonException When the link request cannot be encoded.
 	 */
 	private function reuseOrCreate( WC_Order $order ): string {
 		$link_id = $this->links->linkId( $order );
@@ -215,12 +217,18 @@ final class LinkCheckout {
 	 *
 	 * @param WC_Order $order Order.
 	 * @throws ZenyApiException When the API call fails.
+	 * @throws JsonException When the body cannot be encoded.
 	 */
 	private function create( WC_Order $order ): string {
 		$body = $this->requestBody( $order );
 		$key  = IdempotencyKey::forOrderAttempt( $this->siteHash, $order->get_id(), $this->links->attempt( $order ) );
 		try {
 			$link = $this->api->createPaymentLink( $body, $key );
+		} catch ( JsonException $e ) {
+			// Never sent, so nothing to replay: drop the stored body, or every resubmit fails the same way.
+			$this->links->nextAttempt( $order );
+			$order->save();
+			throw $e;
 		} catch ( ZenyApiException $e ) {
 			// A refused create did nothing: the next submit is a new attempt, so a fixed
 			// setting takes effect. An unknown outcome keeps its key and body for the replay.
@@ -301,6 +309,15 @@ final class LinkCheckout {
 	}
 
 	/**
+	 * Store text with invalid UTF-8 stripped, so it can be JSON-encoded.
+	 *
+	 * @param string $text Text from the store.
+	 */
+	private static function utf8( string $text ): string {
+		return wp_check_invalid_utf8( $text, true );
+	}
+
+	/**
 	 * The order total as IDR money.
 	 *
 	 * @param WC_Order $order Order.
@@ -319,11 +336,11 @@ final class LinkCheckout {
 	private function spec( WC_Order $order ): LinkSpec {
 		$items = array();
 		foreach ( $order->get_items() as $item ) {
-			$items[] = wp_specialchars_decode( $item->get_name(), ENT_QUOTES );
+			$items[] = self::utf8( wp_specialchars_decode( $item->get_name(), ENT_QUOTES ) );
 		}
 		return new LinkSpec(
 			/* translators: 1: order number, 2: shop name. */
-			sprintf( __( 'Order #%1$s – %2$s', 'zeny' ), $order->get_order_number(), wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ),
+			sprintf( __( 'Order #%1$s – %2$s', 'zeny' ), self::utf8( (string) $order->get_order_number() ), self::utf8( wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ) ),
 			self::total( $order ),
 			$items,
 			$order->get_checkout_order_received_url(),

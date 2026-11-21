@@ -37,7 +37,7 @@ final class SettingsPanel {
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Webhook URL', 'zeny' ); ?></th>
 				<td>
-					<code><?php echo esc_html( rest_url( 'zeny/v1/webhook' ) ); ?></code>
+					<code><?php echo esc_html( WebhookController::url() ); ?></code>
 					<p class="description"><?php esc_html_e( 'In the Zeny dashboard, add a webhook endpoint with this URL and the payment.paid event, then paste its secret in the Webhook secret field above.', 'zeny' ); ?></p>
 				</td>
 			</tr>

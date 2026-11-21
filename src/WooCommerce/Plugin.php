@@ -35,6 +35,12 @@ final class Plugin {
 		add_action( 'woocommerce_order_status_cancelled', array( self::class, 'onOrderCancelled' ), 10, 2 );
 		add_action( 'admin_notices', array( AdminNotices::class, 'render' ) );
 		add_action( 'wp_ajax_' . SettingsPanel::AJAX_ACTION, array( SettingsPanel::class, 'ajaxTestConnection' ) );
+		add_action( 'rest_api_init', array( WebhookController::class, 'register' ) );
+		add_action( 'woocommerce_thankyou_' . Gateway::ID, array( ReturnHandler::class, 'render' ) );
+		add_action( 'wp_ajax_' . ReturnHandler::AJAX_ACTION, array( ReturnHandler::class, 'ajaxStatus' ) );
+		add_action( 'wp_ajax_nopriv_' . ReturnHandler::AJAX_ACTION, array( ReturnHandler::class, 'ajaxStatus' ) );
+		add_action( 'add_meta_boxes', array( OrderMetaBox::class, 'register' ) );
+		add_action( 'wp_ajax_' . OrderMetaBox::AJAX_ACTION, array( OrderMetaBox::class, 'ajaxConfirm' ) );
 	}
 
 	/**

@@ -20,4 +20,25 @@ final class PluginTest extends TestCase {
 	public function test_webhook_route_is_registered(): void {
 		$this->assertArrayHasKey( '/zeny/v1/webhook', rest_get_server()->get_routes() );
 	}
+
+	public function test_indonesian_translation_loads(): void {
+		$indonesian = static function (): string {
+			return 'id_ID';
+		};
+		// Since WordPress 6.7 the file loads just in time for determine_locale(), and 6.5+ keeps translations per locale.
+		$controller = \WP_Translation_Controller::get_instance();
+		$previous   = $controller->get_locale();
+		add_filter( 'determine_locale', $indonesian );
+		unload_textdomain( 'zeny' );
+		$controller->set_locale( 'id_ID' );
+		try {
+			$this->assertTrue( load_plugin_textdomain( 'zeny', false, 'zeny-woocommerce/languages' ) );
+			$this->assertSame( 'Produksi', __( 'Production', 'zeny' ) );
+			$this->assertSame( 'Uji koneksi', __( 'Test connection', 'zeny' ) );
+		} finally {
+			remove_filter( 'determine_locale', $indonesian );
+			$controller->set_locale( $previous );
+			unload_textdomain( 'zeny' );
+		}
+	}
 }

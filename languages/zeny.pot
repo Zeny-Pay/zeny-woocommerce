@@ -1,0 +1,435 @@
+# Copyright (C) 2026 Zeny
+# This file is distributed under the Proprietary.
+msgid ""
+msgstr ""
+"Project-Id-Version: Zeny for WooCommerce 1.0.0\n"
+"Report-Msgid-Bugs-To: https://usezeny.com\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: zeny\n"
+
+#. Plugin Name of the plugin
+#: zeny-woocommerce.php
+msgid "Zeny for WooCommerce"
+msgstr ""
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: zeny-woocommerce.php
+msgid "https://usezeny.com"
+msgstr ""
+
+#. Description of the plugin
+#: zeny-woocommerce.php
+msgid "Take payments through Zeny payment links. Shoppers choose QRIS, virtual account or e-wallet on the Zeny pay page."
+msgstr ""
+
+#. Author of the plugin
+#: zeny-woocommerce.php
+#: src/WooCommerce/Gateway.php:33
+#: src/WooCommerce/OrderMetaBox.php:33
+msgid "Zeny"
+msgstr ""
+
+#: src/WooCommerce/AdminNotices.php:33
+msgid "Zeny:"
+msgstr ""
+
+#. translators: %s: store currency code.
+#: src/WooCommerce/AdminNotices.php:52
+#, php-format
+msgid "The store currency is %s, but Zeny takes Indonesian rupiah (IDR) only, so Zeny is hidden at checkout. Set the currency under WooCommerce > Settings > General."
+msgstr ""
+
+#: src/WooCommerce/AdminNotices.php:56
+msgid "There is no valid secret API key, so Zeny is hidden at checkout. Add the key under WooCommerce > Settings > Payments > Zeny."
+msgstr ""
+
+#: src/WooCommerce/AdminNotices.php:59
+msgid "There is no webhook secret, so paid orders are not updated. Add the webhook endpoint in the Zeny dashboard and paste its secret under WooCommerce > Settings > Payments > Zeny."
+msgstr ""
+
+#: src/WooCommerce/AdminNotices.php:62
+msgid "The store is not on https. Shoppers are not sent back to the store after paying, and Zeny sends webhooks to https addresses only, so orders are not marked paid on their own. Move the store to https, or confirm each payment on the order screen with its Zeny payment id."
+msgstr ""
+
+#: src/WooCommerce/Gateway.php:34
+msgid "Shoppers pay on a Zeny payment link with QRIS, a virtual account or an e-wallet. Orders are marked paid when Zeny confirms the payment."
+msgstr ""
+
+#: src/WooCommerce/Gateway.php:75
+msgid "Zeny is not available for this order. Choose another payment method."
+msgstr ""
+
+#: src/WooCommerce/Gateway.php:108
+msgid "Saved. Leave blank to keep it."
+msgstr ""
+
+#: src/WooCommerce/Gateway.php:142
+msgid "The secret API key must start with sk_test_ or sk_live_. The saved key was kept."
+msgstr ""
+
+#: src/WooCommerce/Gateway.php:160
+msgid "The webhook secret must start with whsec_. The saved secret was kept."
+msgstr ""
+
+#. translators: %s: the codes that were removed.
+#: src/WooCommerce/Gateway.php:190
+#, php-format
+msgid "These payment method codes were removed because they are not valid: %s"
+msgstr ""
+
+#. translators: %s: payment link id.
+#: src/WooCommerce/LinkCanceller.php:70
+#, php-format
+msgid "Zeny payment link %s canceled."
+msgstr ""
+
+#. translators: %s: payment link id.
+#: src/WooCommerce/LinkCanceller.php:83
+#, php-format
+msgid "Zeny payment link %s took a payment, so it was not canceled. Check the payment in the Zeny dashboard and refund it there if needed."
+msgstr ""
+
+#. translators: %s: payment link id.
+#: src/WooCommerce/LinkCanceller.php:85
+#, php-format
+msgid "Zeny could not cancel payment link %s. It stops taking payments when it expires."
+msgstr ""
+
+#: src/WooCommerce/LinkCheckout.php:101
+msgid "Zeny takes payments in Indonesian rupiah (IDR) only."
+msgstr ""
+
+#: src/WooCommerce/LinkCheckout.php:104
+msgid "This order is already being sent to Zeny. Wait a moment, then try again."
+msgstr ""
+
+#: src/WooCommerce/LinkCheckout.php:112
+msgid "We could not start the Zeny payment for this order. Contact us to complete your order."
+msgstr ""
+
+#. translators: 1: payment link id, 2: Sandbox or Production.
+#: src/WooCommerce/LinkCheckout.php:190
+#, php-format
+msgid "Zeny payment link %1$s created (%2$s). Waiting for the shopper to pay."
+msgstr ""
+
+#. translators: 1: order number, 2: shop name.
+#: src/WooCommerce/LinkCheckout.php:240
+#, php-format
+msgid "Order #%1$s – %2$s"
+msgstr ""
+
+#. translators: 1: error code, 2: request id.
+#: src/WooCommerce/LinkCheckout.php:274
+#, php-format
+msgid "Zeny could not create the payment link: %1$s (request %2$s)."
+msgstr ""
+
+#. translators: %s: reference to quote to support.
+#: src/WooCommerce/LinkCheckout.php:279
+#, php-format
+msgid "We could not start the Zeny payment. Please try again. If it keeps failing, contact us and quote reference %s."
+msgstr ""
+
+#: src/WooCommerce/LinkCheckout.php:288
+msgid "Production"
+msgstr ""
+
+#: src/WooCommerce/LinkCheckout.php:288
+msgid "Sandbox"
+msgstr ""
+
+#. translators: 1: new payment id, 2: payment id the order was paid with.
+#: src/WooCommerce/OrderCompleter.php:108
+#, php-format
+msgid "Zeny payment %1$s arrived for this order, which is already paid by %2$s. The shopper may have paid twice: check both payments in the Zeny dashboard and refund one there."
+msgstr ""
+
+#. translators: 1: payment id, 2: Sandbox or Production.
+#: src/WooCommerce/OrderCompleter.php:127
+#, php-format
+msgid "Zeny payment %1$s received (%2$s)."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:158
+#, php-format
+msgid "Zeny payment %s does not match the order total in IDR."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:162
+#, php-format
+msgid "Zeny payment %s comes from another environment (Sandbox or Production) than the saved API key."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:166
+#, php-format
+msgid "Zeny payment %s was not made through this order's payment link."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:170
+#, php-format
+msgid "Zeny payment %s is not paid."
+msgstr ""
+
+#. translators: %s: payment id.
+#: src/WooCommerce/OrderCompleter.php:174
+#, php-format
+msgid "Zeny payment %s was received after the order was cancelled."
+msgstr ""
+
+#: src/WooCommerce/OrderCompleter.php:176
+msgid "The order was not marked paid. Check the payment in the Zeny dashboard, then complete or refund it."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:45
+msgid "This order was not paid with Zeny."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:50
+msgid "Payment link"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:51
+msgid "Link URL"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:52
+#: src/WooCommerce/SettingsPanel.php:34
+msgid "Mode"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:53
+msgid "Payment"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:67
+msgid "Confirm with a Zeny payment id"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:75
+msgid "Checking…"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:76
+msgid "The check could not run. Reload the page and try again."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:76
+msgid "Confirm payment"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:79
+msgid "Use this only when the webhook did not arrive. The payment must be paid through this order's link for the order total."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:90
+#: src/WooCommerce/SettingsPanel.php:66
+msgid "You are not allowed to do this."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:95
+msgid "Order not found."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:99
+msgid "Payment confirmed. Reloading…"
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:114
+#: src/WooCommerce/SettingsPanel.php:85
+msgid "Save a valid secret API key first."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:119
+msgid "A Zeny payment id starts with pay_."
+msgstr ""
+
+#. translators: 1: error code, 2: request id.
+#: src/WooCommerce/OrderMetaBox.php:122
+#, php-format
+msgid "Zeny could not return that payment: %1$s (request %2$s)."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:127
+msgid "The order is being updated. Try again in a moment."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:143
+msgid "The order is already paid."
+msgstr ""
+
+#: src/WooCommerce/OrderMetaBox.php:145
+msgid "That payment does not pay this order: it must be paid, through this order's payment link, for the order total, in the same environment as the saved key."
+msgstr ""
+
+#: src/WooCommerce/Plugin.php:146
+msgid "Zeny for WooCommerce needs WooCommerce. Install and activate WooCommerce to take Zeny payments."
+msgstr ""
+
+#: src/WooCommerce/ReturnHandler.php:41
+msgid "We have not received the confirmation yet. You will get an email once your payment is confirmed."
+msgstr ""
+
+#: src/WooCommerce/ReturnHandler.php:46
+msgid "We are confirming your payment. This page updates on its own."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:140
+msgid "Enable"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:142
+msgid "Take payments with Zeny"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:146
+msgid "Title"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:148
+msgid "The payment method name shoppers see at checkout."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:149
+msgid "QRIS, virtual account or e-wallet"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:153
+msgid "Description"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:155
+msgid "Shown under the title at checkout."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:156
+msgid "You will choose how to pay on the Zeny payment page."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:160
+msgid "Secret API key"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:162
+msgid "From the Zeny dashboard. A key starting with sk_test_ uses Sandbox; sk_live_ uses Production."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:165
+msgid "Webhook secret"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:167
+msgid "The whsec_ secret of the webhook endpoint you add in the Zeny dashboard."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:170
+msgid "Link lifetime (minutes)"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:172
+msgid "How long a shopper has to pay, from 15 minutes to 7 days (10080 minutes)."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:181
+msgid "Payment methods"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:183
+msgid "Instrument codes to offer, separated by commas, such as QRIS, BCA, GOPAY. Leave empty to offer every method."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:188
+msgid "Required payer details"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:191
+msgid "Details the shopper must enter on the Zeny payment page."
+msgstr ""
+
+#: src/WooCommerce/Settings.php:194
+msgid "Name"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:195
+msgid "Email"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:196
+msgid "Phone"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:200
+msgid "Debug log"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:202
+msgid "Log API calls and webhooks"
+msgstr ""
+
+#: src/WooCommerce/Settings.php:203
+msgid "Writes to WooCommerce > Status > Logs under \"zeny\". Keys and secrets are never logged."
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:27
+msgid "No key saved"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:31
+msgid "Connection"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:38
+msgid "Webhook URL"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:41
+msgid "In the Zeny dashboard, add a webhook endpoint with this URL and the payment.paid event, then paste its secret in the Webhook secret field above."
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:45
+msgid "Test"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:50
+msgid "Testing…"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:51
+msgid "The test could not run. Reload the page and try again."
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:51
+msgid "Test connection"
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:53
+msgid "Tests the saved key. Save your changes first."
+msgstr ""
+
+#. translators: %s: Sandbox or Production.
+#: src/WooCommerce/SettingsPanel.php:93
+#, php-format
+msgid "Connected to Zeny %s."
+msgstr ""
+
+#: src/WooCommerce/SettingsPanel.php:97
+msgid "Could not reach Zeny. Check that this server can make outgoing https requests."
+msgstr ""
+
+#. translators: 1: error code, 2: request id.
+#: src/WooCommerce/SettingsPanel.php:99
+#, php-format
+msgid "Zeny refused the request: %1$s (request %2$s)."
+msgstr ""

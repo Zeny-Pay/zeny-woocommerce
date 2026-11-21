@@ -113,7 +113,8 @@ final class OrderCompleter {
 		}
 
 		$problem = $this->problem( $order, $payment, $mode );
-		if ( null === $problem && $order->has_status( array( 'cancelled', 'failed', 'refunded' ) ) ) {
+		// Setting on-hold also takes a trashed order out of the trash.
+		if ( null === $problem && $order->has_status( array( 'cancelled', 'failed', 'refunded', 'trash' ) ) ) {
 			$problem = 'order_' . $order->get_status();
 		}
 		if ( null !== $problem ) {
@@ -170,6 +171,10 @@ final class OrderCompleter {
 			case PaymentCheck::NOT_PAID:
 				/* translators: %s: payment id. */
 				$reason = __( 'Zeny payment %s is not paid.', 'zeny' );
+				break;
+			case 'order_trash':
+				/* translators: %s: payment id. */
+				$reason = __( 'Zeny payment %s was received for this order while it was in the trash. It was taken out of the trash.', 'zeny' );
 				break;
 			default:
 				/* translators: %s: payment id. */

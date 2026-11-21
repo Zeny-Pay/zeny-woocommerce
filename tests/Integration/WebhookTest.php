@@ -32,6 +32,36 @@ final class WebhookTest extends IntegrationTestCase {
 		$this->assertSame( 'pending', $this->reload( $order )->get_status() );
 	}
 
+	// Merchants must be able to find a paid but unmatched link with debug logging off.
+	public function test_unknown_paid_link_is_logged_as_an_error_with_ids_only(): void {
+		$order = $this->orderWithLink();
+		$this->deliver( $this->paidEvent( $order, array( 'paymentLink' => 'pl_unmatched_7' ), 'evt_unmatched_7' ) );
+
+		$log = $this->zenyLog();
+		$this->assertMatchesRegularExpression( '/ERROR.*pl_unmatched_7/', $log );
+		$this->assertStringContainsString( 'evt_unmatched_7', $log );
+		$this->assertStringNotContainsString( 'amountReceived', $log );
+	}
+
+	// A trashed order still holds its links: the money it took must reach a person.
+	public function test_payment_for_a_trashed_order_puts_it_on_hold(): void {
+		$order = $this->orderWithLink();
+		$event = $this->paidEvent( $order );
+		$id    = $order->get_id();
+		$order->delete( false ); // Trashes it and sets the object's id to 0.
+		$order = wc_get_order( $id );
+		$this->assertInstanceOf( WC_Order::class, $order );
+		$this->assertSame( 'trash', $order->get_status() );
+
+		$this->assertSame( 200, $this->deliver( $event )->get_status() );
+
+		$order = $this->reload( $order );
+		$this->assertSame( 'on-hold', $order->get_status() );
+		$this->assertFalse( $order->is_paid() );
+		$this->assertNoteContains( $order, 'trash' );
+		$this->assertMatchesRegularExpression( '/ERROR.*trash.*"order":' . $order->get_id() . '/', $this->zenyLog() );
+	}
+
 	public function test_event_without_a_usable_api_key_answers_500_so_zeny_retries(): void {
 		$order = $this->orderWithLink();
 		$this->configure( array( 'api_key' => '' ) );
@@ -264,6 +294,15 @@ final class WebhookTest extends IntegrationTestCase {
 		$this->assertFalse( \Zeny\WooCommerce\WooCommerce\ReturnHandler::status( $order->get_id(), $order->get_order_key() ) );
 		$this->deliver( $this->paidEvent( $order ) );
 		$this->assertTrue( \Zeny\WooCommerce\WooCommerce\ReturnHandler::status( $order->get_id(), $order->get_order_key() ) );
+	}
+
+	private function zenyLog(): string {
+		$files = glob( wp_upload_dir()['basedir'] . '/wc-logs/zeny-*.log' );
+		$log   = '';
+		foreach ( is_array( $files ) ? $files : array() as $file ) {
+			$log .= (string) file_get_contents( $file );
+		}
+		return $log;
 	}
 
 	private function orderWithLink(): WC_Order {

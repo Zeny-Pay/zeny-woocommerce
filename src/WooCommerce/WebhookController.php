@@ -110,14 +110,15 @@ final class WebhookController {
 		$order = $links->findByLinkId( $link_id );
 		if ( null === $order ) {
 			// Not a race with checkout: the shopper only gets a link's URL after the order
-			// has stored the link (saveLink, then save, then the redirect), and every link
-			// an order had stays stored. So no order holding the link means the link is not
-			// this shop's: another integration on the same Zeny project made it.
-			$logger->debug(
-				'Webhook for a link no order holds; ignored.',
+			// has stored the link (saveLink, then save, then the redirect), and every link an
+			// order had stays stored, trashed orders included. So the link is most likely
+			// another integration's on the same Zeny project; retrying would not change that.
+			// Yet money was taken, so it is logged as an error a merchant can find.
+			$logger->error(
+				'Paid Zeny link matches no order; the payment was not applied. Check it in the Zeny dashboard.',
 				array(
-					'event' => $event->id(),
 					'link'  => $link_id,
+					'event' => $event->id(),
 				)
 			);
 			return new WP_REST_Response( array( 'ignored' => 'unknown_link' ), 200 );
@@ -136,6 +137,15 @@ final class WebhookController {
 			$fresh = wc_get_order( $order->get_id() );
 			if ( ! $fresh instanceof \WC_Order ) {
 				return self::answer( 500, 'order_not_found' );
+			}
+			if ( $fresh->has_status( 'trash' ) ) {
+				$logger->error(
+					'Zeny payment received for an order in the trash; it is put on hold.',
+					array(
+						'order' => $fresh->get_id(),
+						'event' => $event->id(),
+					)
+				);
 			}
 			$outcome = ( new OrderCompleter( $links, $api->mode() ) )->applyEvent( $fresh, $payment, $event->mode(), $event->id() );
 		} finally {

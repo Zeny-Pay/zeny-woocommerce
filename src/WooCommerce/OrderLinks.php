@@ -212,7 +212,8 @@ final class OrderLinks {
 			array(
 				'limit'      => 1,
 				'type'       => 'shop_order',
-				'status'     => 'any',
+				// "any" leaves out trashed orders, which can still be paid through a link they hold.
+				'status'     => array_merge( array_keys( wc_get_order_statuses() ), array( 'trash' ) ),
 				'meta_key'   => self::ALL_LINKS, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one lookup per webhook.
 				'meta_value' => $link_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			)

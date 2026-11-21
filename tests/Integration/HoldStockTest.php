@@ -44,6 +44,7 @@ final class HoldStockTest extends IntegrationTestCase {
 		$order->set_payment_method( $method );
 		if ( null !== $expires_in ) {
 			$order->update_meta_data( '_zeny_payment_link_id', 'pl_x' );
+			$order->update_meta_data( '_zeny_mode', 'test' );
 			$order->update_meta_data( '_zeny_link_expires_at', (string) ( time() + $expires_in ) );
 		}
 		$order->save();
@@ -62,6 +63,20 @@ final class HoldStockTest extends IntegrationTestCase {
 			'other gateway'        => array( true, 'cod', 600, true ),
 			'woo already said no'  => array( false, 'zeny', -1, false ),
 		);
+	}
+
+	public function test_order_whose_link_is_of_the_other_environment_is_not_kept(): void {
+		$order = $this->staleOrderWithLink();
+		$this->configure( array( 'api_key' => 'sk_live_good' ) );
+
+		$this->assertTrue( apply_filters( 'woocommerce_cancel_unpaid_order', true, $this->reload( $order ) ) );
+	}
+
+	public function test_order_is_not_kept_without_a_usable_key(): void {
+		$order = $this->staleOrderWithLink();
+		$this->configure( array( 'api_key' => '' ) );
+
+		$this->assertTrue( apply_filters( 'woocommerce_cancel_unpaid_order', true, $this->reload( $order ) ) );
 	}
 
 	private function staleOrderWithLink(): WC_Order {

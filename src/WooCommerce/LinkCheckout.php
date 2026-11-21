@@ -265,8 +265,9 @@ final class LinkCheckout {
 				'requestId' => $e->requestId(),
 			)
 		);
-		// The key was used for another body; only a new attempt can go through.
-		if ( 'idempotency_key_reused' === $e->errorCode() ) {
+		// A refused request did nothing: the next submit is a new attempt, so a fixed
+		// setting takes effect. An unknown outcome keeps its key and body for the replay.
+		if ( ! $e->isOutcomeUnknown() ) {
 			$this->links->nextAttempt( $order );
 		}
 		$order->add_order_note(

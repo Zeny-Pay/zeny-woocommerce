@@ -106,10 +106,11 @@ final class ZenyApiException extends RuntimeException {
 	}
 
 	/**
-	 * Whether the request may have been carried out: no answer, or a 5xx.
-	 * Retry with the same idempotency key, or read the object.
+	 * Whether the request may have been carried out: no answer, a 5xx, or the
+	 * first request with this key still running. Retry with the same
+	 * idempotency key, or read the object. Any other error did nothing.
 	 */
 	public function isOutcomeUnknown(): bool {
-		return null === $this->statusCode || $this->statusCode >= 500;
+		return null === $this->statusCode || $this->statusCode >= 500 || 'idempotency_key_in_progress' === $this->errorCode;
 	}
 }

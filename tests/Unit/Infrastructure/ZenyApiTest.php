@@ -193,6 +193,18 @@ final class ZenyApiTest extends TestCase {
 		);
 	}
 
+	public function test_in_progress_conflict_has_an_unknown_outcome(): void {
+		$this->transport->respond( 409, array( 'error' => array( 'type' => 'conflict', 'code' => 'idempotency_key_in_progress' ) ) )
+			->respond( 409, array( 'error' => array( 'type' => 'conflict', 'code' => 'idempotency_key_in_progress' ) ) )
+			->respond( 409, array( 'error' => array( 'type' => 'conflict', 'code' => 'idempotency_key_in_progress' ) ) );
+		try {
+			$this->api()->createPaymentLink( array(), IdempotencyKey::parse( 'k' ) );
+			$this->fail( 'expected ZenyApiException' );
+		} catch ( ZenyApiException $e ) {
+			$this->assertTrue( $e->isOutcomeUnknown() );
+		}
+	}
+
 	public function test_error_without_the_error_shape_is_unexpected_response_with_header_request_id(): void {
 		$this->transport->respond( 404, 'not found', array( 'x-request-id' => 'req_h' ) );
 		try {

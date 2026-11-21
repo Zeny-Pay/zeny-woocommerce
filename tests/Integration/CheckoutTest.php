@@ -220,6 +220,23 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertStringNotContainsString( 'field_required', $notice );
 		$this->assertNoteContains( $this->reload( $order ), 'field_required' );
 		$this->assertSame( 'pending', $this->reload( $order )->get_status() );
+
+		// The refused request did nothing, so a fixed resubmit goes out as a new attempt.
+		$this->configure( array( 'instruments' => 'QRIS' ) );
+		$this->assertSame( 'success', $this->gateway()->process_payment( $order->get_id() )['result'] );
+		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$this->assertStringEndsWith( '-1', (string) $creates[0]['key'] );
+		$this->assertStringEndsWith( '-2', (string) $creates[1]['key'] );
+		$this->assertSame( array( 'QRIS' ), $creates[1]['body']['instruments'] );
+	}
+
+	public function test_in_progress_answer_keeps_the_same_key_for_the_resubmit(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 409, 3, false, 'idempotency_key_in_progress' );
+		$order = $this->order();
+		$this->assertSame( 'failure', $this->gateway()->process_payment( $order->get_id() )['result'] );
+		$this->gateway()->process_payment( $order->get_id() );
+
+		$this->assertCount( 1, array_unique( array_column( StubZeny::requests( 'POST', '/payment-links' ), 'key' ) ) );
 	}
 
 	public function test_cancelling_an_unpaid_order_cancels_its_link(): void {

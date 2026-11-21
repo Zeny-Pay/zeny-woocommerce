@@ -24,9 +24,10 @@ against the API). The plugin never handles a payment method itself.
 | `bin/lint`                 | PHPCS (WordPress Coding Standards) and PHPStan level 6           |
 | `bin/lint fix`             | Run phpcbf first, then the checks                                |
 | `bin/test unit [7.4\|8.3]` | Unit tests (no WordPress) on PHP 7.4 and 8.3, or one of them     |
-| `bin/test integration`     | WordPress + WooCommerce + a stub Zeny API in Docker              |
+| `bin/test integration`     | WordPress + WooCommerce + a stub Zeny API, on the posts and HPOS order stores |
 | `bin/test`                 | Every suite                                                      |
 | `bin/build`                | `build/zeny-woocommerce-<version>.zip`, checked for its contents |
+| `bin/i18n`                 | Rebuild `languages/zeny.pot`, merge it into the `.po`, compile `.mo` |
 
 Before every push: `bin/lint && bin/test && bin/build`.
 
@@ -64,8 +65,16 @@ languages/             zeny.pot and the Indonesian translation
 - Orders through `wc_get_order` and the order meta API only, never post meta.
 - Never invent an API field: the contract is the Merchant API v1 OpenAPI
   document published with the Node SDK (`@usezeny/node`, `openapi/merchant.v1.json`).
-- Admin copy is plain and translatable (text domain `zeny`); add new strings to
-  `languages/zeny.pot` and the Indonesian `.po`/`.mo`.
+- Admin copy is plain and translatable (text domain `zeny`). After changing
+  strings run `bin/i18n`, translate the new entries in `zeny-id_ID.po`, and
+  run `bin/i18n` again to compile the `.mo`.
+
+## Releases
+
+Bump the version in the plugin header, `ZENY_WC_VERSION`, `readme.txt`
+(`Stable tag`) and `CHANGELOG.md` (`bin/build` fails when they differ), merge
+to `main`, then push a tag `vX.Y.Z` on that commit. The Release workflow
+builds the zip and attaches it to a GitHub release.
 
 ## Code style
 

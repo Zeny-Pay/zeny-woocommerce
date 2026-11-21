@@ -47,3 +47,11 @@ jobs:
         env:
           ORDER_STORES: ${{ matrix.store }}
 
+
+  package:
+    name: Release zip contents
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/build

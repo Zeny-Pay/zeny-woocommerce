@@ -14,6 +14,3 @@ add_filter(
 // Checkout notices live in the WooCommerce session, which a CLI request lacks.
 WC()->session = new WC_Session_Handler();
 WC()->session->init();
-
-// No mail server in the container; order emails are not under test.
-add_filter( 'pre_wp_mail', '__return_false' );

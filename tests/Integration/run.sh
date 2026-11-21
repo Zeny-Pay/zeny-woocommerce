@@ -19,12 +19,22 @@ if [ "${ORDER_STORE:-posts}" = "hpos" ]; then
 	wp wc hpos enable
 fi
 ln -sfn /plugin wp-content/plugins/zeny-woocommerce
+# No mail server in the container; order emails are not under test.
+mkdir -p wp-content/mu-plugins
+echo "<?php add_filter( 'pre_wp_mail', '__return_false' );" > wp-content/mu-plugins/zeny-test-no-mail.php
 wp plugin activate zeny-woocommerce
 wp option update woocommerce_currency IDR
 echo "WordPress $(wp core version), WooCommerce $(wp plugin get woocommerce --field=version), order store: ${ORDER_STORE:-posts}"
 
+# WP-CLI does not load Composer, so this exercises the plugin's own autoloader.
+wp eval 'new Zeny\WooCommerce\WooCommerce\Gateway(); echo "plugin autoloader ok\n";'
+
 mkdir -p /tmp/zeny-stub
 php -S 127.0.0.1:8099 /plugin/tests/Integration/stub-server.php >/tmp/zeny-stub/server.log 2>&1 &
-trap 'kill $! 2>/dev/null || true' EXIT
+stub=$!
+# The shop itself, for tests that go through real HTTP (webhook, order status).
+php -S 127.0.0.1:8080 -t /var/www/html >/tmp/zeny-stub/wordpress.log 2>&1 &
+shop=$!
+trap 'kill $stub $shop 2>/dev/null || true' EXIT
 
-php /plugin/vendor/bin/phpunit -c /plugin/tests/Integration/phpunit.xml "$@"
+php /plugin/vendor/bin/phpunit -c /plugin/tests/Integration/phpunit.xml "$@" || { status=$?; tail -20 /tmp/zeny-stub/wordpress.log; exit $status; }

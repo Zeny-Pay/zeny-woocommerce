@@ -1,0 +1,14 @@
+# Release zips are built with `git archive`: everything below stays out of them.
+/.github export-ignore
+/bin export-ignore
+/tests export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/AGENTS.md export-ignore
+/CLAUDE.md export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/docker-compose.test.yml export-ignore
+/phpcs.xml.dist export-ignore
+/phpstan.neon.dist export-ignore
+/phpunit.xml.dist export-ignore

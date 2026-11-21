@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Runs Composer in Docker, so no local PHP or Composer is needed.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp/composer \
+	-v "$root:/app" -w /app composer:2 composer "$@"

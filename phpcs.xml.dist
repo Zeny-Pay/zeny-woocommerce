@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<ruleset name="Zeny WooCommerce">
+	<description>WordPress Coding Standards for the plugin code.</description>
+
+	<file>zeny-woocommerce.php</file>
+	<file>src</file>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="minimum_wp_version" value="6.3"/>
+	<config name="testVersion" value="7.4-"/>
+
+	<rule ref="WordPress-Extra">
+		<!-- PSR-4 class files (src/Foo/Bar.php) instead of class-bar.php. -->
+		<exclude name="WordPress.Files.FileName"/>
+		<!-- Own methods and properties are camelCase; WooCommerce overrides keep their names. -->
+		<exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase"/>
+		<exclude name="WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase"/>
+	</rule>
+	<rule ref="WordPress-Docs"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="zeny"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="zeny"/>
+				<element value="Zeny\WooCommerce"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

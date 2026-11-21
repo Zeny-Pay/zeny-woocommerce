@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Runs PHPCS (WordPress Coding Standards) and PHPStan in Docker.
+#   bin/lint        check
+#   bin/lint fix    fix what phpcbf can, then check
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+[ -d "$root/vendor" ] || "$root/bin/composer" install --no-interaction --no-progress
+
+php() {
+	docker run --rm -u "$(id -u):$(id -g)" -v "$root:/app" -w /app php:8.3-cli php -d memory_limit=1G "$@"
+}
+
+if [ "${1:-}" = "fix" ]; then
+	php vendor/bin/phpcbf || true
+fi
+echo "== phpcs"
+php vendor/bin/phpcs
+echo "== phpstan"
+php vendor/bin/phpstan analyse --no-progress

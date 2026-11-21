@@ -14,10 +14,14 @@ if [ -n "$WC_VERSION" ]; then
 else
 	wp plugin install woocommerce --activate
 fi
+# HPOS can only be switched on before the first order exists.
+if [ "${ORDER_STORE:-posts}" = "hpos" ]; then
+	wp wc hpos enable
+fi
 ln -sfn /plugin wp-content/plugins/zeny-woocommerce
 wp plugin activate zeny-woocommerce
 wp option update woocommerce_currency IDR
-echo "WordPress $(wp core version), WooCommerce $(wp plugin get woocommerce --field=version)"
+echo "WordPress $(wp core version), WooCommerce $(wp plugin get woocommerce --field=version), order store: ${ORDER_STORE:-posts}"
 
 mkdir -p /tmp/zeny-stub
 php -S 127.0.0.1:8099 /plugin/tests/Integration/stub-server.php >/tmp/zeny-stub/server.log 2>&1 &

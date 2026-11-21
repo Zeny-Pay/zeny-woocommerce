@@ -152,20 +152,19 @@ final class OrderLinks {
 		if ( '' === $link_id ) {
 			return null;
 		}
+		// meta_key/meta_value, not meta_query: the posts order store ignores meta_query and returns every order.
 		$orders = wc_get_orders(
 			array(
 				'limit'      => 1,
 				'type'       => 'shop_order',
-				'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- one indexed lookup per webhook.
-					array(
-						'key'   => self::LINK_ID,
-						'value' => $link_id,
-					),
-				),
+				'status'     => 'any',
+				'meta_key'   => self::LINK_ID, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one lookup per webhook.
+				'meta_value' => $link_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			)
 		);
 		$order  = is_array( $orders ) ? reset( $orders ) : false;
-		return $order instanceof WC_Order ? $order : null;
+		// Checked again, so a query that ignored the filter can never hand back another order.
+		return $order instanceof WC_Order && $this->linkId( $order ) === $link_id ? $order : null;
 	}
 
 	/**

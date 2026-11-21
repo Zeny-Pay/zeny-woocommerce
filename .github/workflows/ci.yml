@@ -34,10 +34,16 @@ jobs:
       - run: bin/test unit ${{ matrix.php }}
 
   integration:
-    name: Integration (latest WordPress + WooCommerce)
+    name: Integration (latest WordPress + WooCommerce, ${{ matrix.store }} orders)
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [posts, hpos]
     steps:
       - uses: actions/checkout@v4
       - run: bin/test integration
+        env:
+          ORDER_STORES: ${{ matrix.store }}
 

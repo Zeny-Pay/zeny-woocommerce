@@ -24,5 +24,6 @@ services:
     environment:
       WP_VERSION: ${WP_VERSION:-latest}
       WC_VERSION: ${WC_VERSION:-}
+      ORDER_STORE: ${ORDER_STORE:-posts}
     volumes:
       - .:/plugin

@@ -2,7 +2,8 @@
 # Runs the test suites in Docker, so no local PHP is needed.
 #   bin/test              unit tests on PHP 7.4 and 8.3, then the integration suite
 #   bin/test unit [7.4]   unit tests on one PHP version (default: both)
-#   bin/test integration  WordPress + WooCommerce + stub Zeny API (docker compose)
+#   bin/test integration [phpunit args]  WordPress + WooCommerce + stub Zeny API (docker compose),
+#                         on the posts and the HPOS order store (ORDER_STORES="hpos" for one)
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -15,15 +16,18 @@ unit() {
 }
 
 integration() {
-	echo "== integration tests"
-	local compose=(docker compose -f "$root/docker-compose.test.yml" -p zeny-wc-test)
+	local compose=(docker compose -f "$root/docker-compose.test.yml" --project-directory "$root" -p zeny-wc-test)
 	trap '"${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true' EXIT
-	"${compose[@]}" run --rm wordpress bash /plugin/tests/Integration/run.sh
+	for store in ${ORDER_STORES:-posts hpos}; do
+		echo "== integration tests, $store order store"
+		"${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+		"${compose[@]}" run --rm -e ORDER_STORE="$store" wordpress bash /plugin/tests/Integration/run.sh "$@"
+	done
 }
 
 case "${1:-all}" in
 	unit) if [ -n "${2:-}" ]; then unit "$2"; else unit 7.4; unit 8.3; fi ;;
-	integration) integration ;;
+	integration) shift; integration "$@" ;;
 	all) unit 7.4; unit 8.3; integration ;;
 	*) echo "usage: bin/test [unit [7.4|8.3] | integration]" >&2; exit 2 ;;
 esac

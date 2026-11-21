@@ -85,20 +85,32 @@ final class OrderMetaBox {
 	 */
 	public static function ajaxConfirm(): void {
 		check_ajax_referer( self::AJAX_ACTION );
-		$order_id = isset( $_POST['order'] ) ? absint( $_POST['order'] ) : 0;
-		if ( ! current_user_can( 'edit_shop_orders' ) && ! current_user_can( 'edit_post', $order_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'You are not allowed to do this.', 'zeny' ) ), 403 );
-		}
+		$order_id   = isset( $_POST['order'] ) ? absint( $_POST['order'] ) : 0;
 		$order      = wc_get_order( $order_id );
 		$payment_id = isset( $_POST['payment'] ) ? sanitize_text_field( wp_unslash( $_POST['payment'] ) ) : '';
-		if ( ! $order instanceof WC_Order ) {
-			wp_send_json_error( array( 'message' => __( 'Order not found.', 'zeny' ) ), 404 );
+		// The same answer for a missing order and a forbidden one, so ids cannot be probed.
+		if ( ! $order instanceof WC_Order || ! self::canConfirm( $order ) ) {
+			wp_send_json_error( array( 'message' => __( 'You are not allowed to do this.', 'zeny' ) ), 403 );
 		}
 		$error = self::confirm( $order, $payment_id );
 		if ( null === $error ) {
 			wp_send_json_success( array( 'message' => __( 'Payment confirmed. Reloading…', 'zeny' ) ) );
 		}
 		wp_send_json_error( array( 'message' => $error ) );
+	}
+
+	/**
+	 * Whether the current user may confirm a payment on this order: the right
+	 * to edit orders, and to edit this one (WooCommerce maps the per-order
+	 * capability on both order stores).
+	 *
+	 * @param WC_Order $order Order.
+	 */
+	public static function canConfirm( WC_Order $order ): bool {
+		if ( ! current_user_can( 'edit_shop_orders' ) ) {
+			return false;
+		}
+		return current_user_can( 'edit_shop_order', $order->get_id() );
 	}
 
 	/**

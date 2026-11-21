@@ -90,6 +90,50 @@ final class WebhookTest extends IntegrationTestCase {
 		$this->assertNoteContains( $order, 'pay_2' );
 	}
 
+	public function test_payment_for_an_order_marked_paid_by_hand_gets_its_own_note(): void {
+		$order = $this->orderWithLink();
+		$order->set_status( 'processing' );
+		$order->save();
+		$this->assertSame( '', $order->get_transaction_id() );
+
+		$this->assertSame( 200, $this->deliver( $this->paidEvent( $order ) )->get_status() );
+
+		$order = $this->reload( $order );
+		$this->assertSame( 'processing', $order->get_status() );
+		$this->assertSame( '', $order->get_transaction_id() );
+		$this->assertNoteContains( $order, 'already marked paid without a Zeny payment' );
+	}
+
+	/**
+	 * @dataProvider roles
+	 */
+	public function test_manual_confirmation_needs_the_right_to_edit_orders( string $role, bool $allowed ): void {
+		$order   = $this->orderWithLink();
+		$user_id = wp_insert_user(
+			array(
+				'user_login' => 'zeny_' . $role . '_' . wp_generate_password( 6, false ),
+				'user_pass'  => wp_generate_password(),
+				'role'       => $role,
+			)
+		);
+		$this->assertIsInt( $user_id );
+		wp_set_current_user( $user_id );
+
+		$this->assertSame( $allowed, \Zeny\WooCommerce\WooCommerce\OrderMetaBox::canConfirm( $order ) );
+	}
+
+	/**
+	 * @return array<string, array{string, bool}>
+	 */
+	public function roles(): array {
+		return array(
+			'administrator' => array( 'administrator', true ),
+			'shop manager'  => array( 'shop_manager', true ),
+			'customer'      => array( 'customer', false ),
+			'editor'        => array( 'editor', false ),
+		);
+	}
+
 	// Review focus 3: money taken for a cancelled order puts it on hold for the merchant.
 	public function test_payment_for_a_cancelled_order_puts_it_on_hold(): void {
 		$order = $this->orderWithLink();

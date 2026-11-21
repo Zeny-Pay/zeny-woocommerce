@@ -103,10 +103,12 @@ final class OrderCompleter {
 			if ( $paid_by === $payment_id ) {
 				return self::ALREADY;
 			}
-			$order->add_order_note(
+			$note = '' === $paid_by
+				/* translators: %s: payment id. */
+				? sprintf( __( 'Zeny payment %s arrived for this order, which was already marked paid without a Zeny payment. Check how it was paid, and refund the Zeny payment from the Zeny dashboard if it is extra.', 'zeny' ), $payment_id )
 				/* translators: 1: new payment id, 2: payment id the order was paid with. */
-				sprintf( __( 'Zeny payment %1$s arrived for this order, which is already paid by %2$s. The shopper may have paid twice: check both payments in the Zeny dashboard and refund one there.', 'zeny' ), $payment_id, $paid_by )
-			);
+				: sprintf( __( 'Zeny payment %1$s arrived for this order, which is already paid by %2$s. The shopper may have paid twice: check both payments in the Zeny dashboard and refund one there.', 'zeny' ), $payment_id, $paid_by );
+			$order->add_order_note( $note );
 			return self::EXTRA;
 		}
 

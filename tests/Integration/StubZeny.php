@@ -32,6 +32,22 @@ final class StubZeny {
 	}
 
 	/**
+	 * The create-link requests only (POST /payment-links, not its sub-routes).
+	 *
+	 * @return list<array{method: string, path: string, query: string, key: ?string, auth: ?string, body: mixed}>
+	 */
+	public static function creates(): array {
+		return array_values(
+			array_filter(
+				self::requests( 'POST', '/payment-links' ),
+				static function ( array $r ): bool {
+					return '/api/merchant/v1/payment-links' === $r['path'];
+				}
+			)
+		);
+	}
+
+	/**
 	 * Makes the next $count calls to method + path answer $status. With $commit,
 	 * the call takes effect first, so the client cannot know it did.
 	 */
@@ -45,6 +61,12 @@ final class StubZeny {
 			'commit' => $commit,
 			'code'   => $code,
 		);
+		self::write( $state );
+	}
+
+	public static function reset_failures(): void {
+		$state             = self::read();
+		$state['failures'] = array();
 		self::write( $state );
 	}
 

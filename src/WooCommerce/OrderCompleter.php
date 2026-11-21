@@ -142,7 +142,7 @@ final class OrderCompleter {
 			return PaymentCheck::AMOUNT_MISMATCH;
 		}
 		$total = Money::idr( (string) wc_format_decimal( $order->get_total(), 2 ) );
-		return PaymentCheck::problem( $payment, $mode, $this->links->linkId( $order ), $total, $this->keyMode );
+		return PaymentCheck::problem( $payment, $mode, $this->links->linkIds( $order ), $total, $this->keyMode );
 	}
 
 	/**

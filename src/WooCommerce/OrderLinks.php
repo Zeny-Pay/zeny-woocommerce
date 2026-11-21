@@ -15,12 +15,15 @@ use WC_Order;
  */
 final class OrderLinks {
 
-	public const LINK_ID  = '_zeny_payment_link_id';
-	public const LINK_URL = '_zeny_payment_link_url';
-	public const MODE     = '_zeny_mode';
-	public const ATTEMPT  = '_zeny_link_attempt';
-	public const REQUEST  = '_zeny_link_request';
-	public const EVENTS   = '_zeny_event_ids';
+	public const LINK_ID      = '_zeny_payment_link_id';
+	public const LINK_URL     = '_zeny_payment_link_url';
+	public const LINK_EXPIRES = '_zeny_link_expires_at';
+	public const MODE         = '_zeny_mode';
+	public const ATTEMPT      = '_zeny_link_attempt';
+	public const REQUEST      = '_zeny_link_request';
+	public const EVENTS       = '_zeny_event_ids';
+	// One meta row per link the order ever had, so a payment through any of them finds the order.
+	public const ALL_LINKS = '_zeny_payment_link';
 
 	// Enough to recognise a redelivery; an order sees a handful of events.
 	private const EVENTS_KEPT = 50;
@@ -41,6 +44,41 @@ final class OrderLinks {
 	 */
 	public function linkUrl( WC_Order $order ): string {
 		return (string) $order->get_meta( self::LINK_URL );
+	}
+
+	/**
+	 * Every link id the order ever had, oldest first.
+	 *
+	 * @param WC_Order $order Order.
+	 * @return list<string>
+	 */
+	public function linkIds( WC_Order $order ): array {
+		$saved   = array();
+		$unsaved = array();
+		foreach ( $order->get_meta( self::ALL_LINKS, false ) as $meta ) {
+			$data = $meta instanceof \WC_Meta_Data ? $meta->get_data() : array();
+			if ( ! is_string( $data['value'] ?? null ) || '' === $data['value'] ) {
+				continue;
+			}
+			// The two order stores return meta rows in different orders; row ids follow insertion.
+			if ( empty( $data['id'] ) ) {
+				$unsaved[] = $data['value'];
+			} else {
+				$saved[ (int) $data['id'] ] = $data['value'];
+			}
+		}
+		ksort( $saved );
+		return array_merge( array_values( $saved ), $unsaved );
+	}
+
+	/**
+	 * When the current link stops taking payments (Unix time), or null when unknown or never.
+	 *
+	 * @param WC_Order $order Order.
+	 */
+	public function linkExpiresAt( WC_Order $order ): ?int {
+		$value = $order->get_meta( self::LINK_EXPIRES );
+		return is_numeric( $value ) ? (int) $value : null;
 	}
 
 	/**
@@ -68,18 +106,28 @@ final class OrderLinks {
 	 * @param string   $id    Link id.
 	 * @param string   $url   Link URL.
 	 * @param string   $mode  Key mode.
+	 * @param int|null $expires_at When the link expires (Unix time), null for never.
 	 */
-	public function saveLink( WC_Order $order, string $id, string $url, string $mode ): void {
+	public function saveLink( WC_Order $order, string $id, string $url, string $mode, ?int $expires_at ): void {
+		if ( ! in_array( $id, $this->linkIds( $order ), true ) ) {
+			$order->add_meta_data( self::ALL_LINKS, $id );
+		}
 		$order->update_meta_data( self::LINK_ID, $id );
 		$order->update_meta_data( self::LINK_URL, $url );
+		if ( null === $expires_at ) {
+			$order->delete_meta_data( self::LINK_EXPIRES );
+		} else {
+			$order->update_meta_data( self::LINK_EXPIRES, (string) $expires_at );
+		}
 		$order->update_meta_data( self::MODE, $mode );
 		$order->update_meta_data( self::ATTEMPT, (string) $this->attempt( $order ) );
 		$order->delete_meta_data( self::REQUEST );
 	}
 
 	/**
-	 * Moves to the next attempt, dropping the previous link, so the next
-	 * checkout creates a new link under a new idempotency key.
+	 * Moves to the next attempt, so the next checkout creates a new link under
+	 * a new idempotency key. The current link stops being current but stays in
+	 * linkIds(), so a late payment through it still finds the order.
 	 *
 	 * @param WC_Order $order Order.
 	 */
@@ -87,36 +135,43 @@ final class OrderLinks {
 		$order->update_meta_data( self::ATTEMPT, (string) ( $this->attempt( $order ) + 1 ) );
 		$order->delete_meta_data( self::LINK_ID );
 		$order->delete_meta_data( self::LINK_URL );
+		$order->delete_meta_data( self::LINK_EXPIRES );
 		$order->delete_meta_data( self::REQUEST );
 	}
 
 	/**
-	 * The request body sent for the current attempt, if one was sent and no
-	 * link came back. Resending it unchanged lets the API replay the result.
+	 * The create request sent for the current attempt when no link came back,
+	 * with when it was sent. Resending the body unchanged lets the API replay
+	 * the result.
 	 *
 	 * @param WC_Order $order Order.
-	 * @return array<string, mixed>|null
+	 * @return array{body: array<string, mixed>, sentAt: int}|null
 	 */
 	public function pendingRequest( WC_Order $order ): ?array {
 		$stored = $order->get_meta( self::REQUEST );
 		if ( ! is_array( $stored ) || ( $stored['attempt'] ?? 0 ) !== $this->attempt( $order ) || ! is_array( $stored['body'] ?? null ) ) {
 			return null;
 		}
-		return $stored['body'];
+		return array(
+			'body'   => $stored['body'],
+			'sentAt' => (int) ( $stored['sentAt'] ?? 0 ),
+		);
 	}
 
 	/**
-	 * Stores the body about to be sent for the current attempt.
+	 * Stores the body about to be sent for the current attempt, and when.
 	 *
-	 * @param WC_Order             $order Order.
-	 * @param array<string, mixed> $body  Request body.
+	 * @param WC_Order             $order   Order.
+	 * @param array<string, mixed> $body    Request body.
+	 * @param int                  $sent_at Unix time of sending.
 	 */
-	public function savePendingRequest( WC_Order $order, array $body ): void {
+	public function savePendingRequest( WC_Order $order, array $body, int $sent_at ): void {
 		$order->update_meta_data(
 			self::REQUEST,
 			array(
 				'attempt' => $this->attempt( $order ),
 				'body'    => $body,
+				'sentAt'  => $sent_at,
 			)
 		);
 	}
@@ -144,7 +199,7 @@ final class OrderLinks {
 	}
 
 	/**
-	 * The order that holds a link, or null.
+	 * The order that has (or had) a link, or null.
 	 *
 	 * @param string $link_id Link id.
 	 */
@@ -158,13 +213,13 @@ final class OrderLinks {
 				'limit'      => 1,
 				'type'       => 'shop_order',
 				'status'     => 'any',
-				'meta_key'   => self::LINK_ID, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one lookup per webhook.
+				'meta_key'   => self::ALL_LINKS, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- one lookup per webhook.
 				'meta_value' => $link_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 			)
 		);
 		$order  = is_array( $orders ) ? reset( $orders ) : false;
 		// Checked again, so a query that ignored the filter can never hand back another order.
-		return $order instanceof WC_Order && $this->linkId( $order ) === $link_id ? $order : null;
+		return $order instanceof WC_Order && in_array( $link_id, $this->linkIds( $order ), true ) ? $order : null;
 	}
 
 	/**

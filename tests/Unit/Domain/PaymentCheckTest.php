@@ -12,6 +12,19 @@ final class PaymentCheckTest extends TestCase {
 		$this->assertNull( $this->check( array() ) );
 	}
 
+	public function test_a_payment_through_any_of_the_orders_links_matches(): void {
+		$this->assertNull( $this->check( array( 'paymentLink' => 'pl_old' ) ) );
+	}
+
+	public function test_an_order_without_links_matches_nothing(): void {
+		$payment = array(
+			'status'         => 'paid',
+			'paymentLink'    => '',
+			'amountReceived' => array( 'value' => '150000.00', 'currency' => 'IDR' ),
+		);
+		$this->assertSame( PaymentCheck::LINK_MISMATCH, PaymentCheck::problem( $payment, 'test', array(), Money::idr( '150000' ), 'test' ) );
+	}
+
 	/**
 	 * @dataProvider mismatches
 	 *
@@ -55,6 +68,6 @@ final class PaymentCheckTest extends TestCase {
 			),
 			$override
 		);
-		return PaymentCheck::problem( $payment, $mode, 'pl_1', Money::idr( '150000' ), 'test' );
+		return PaymentCheck::problem( $payment, $mode, array( 'pl_old', 'pl_1' ), Money::idr( '150000' ), 'test' );
 	}
 }

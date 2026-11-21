@@ -31,6 +31,7 @@ final class WebhookTest extends IntegrationTestCase {
 
 		// The retry, once the link is stored, completes the order.
 		$order->update_meta_data( '_zeny_payment_link_id', 'pl_not_saved_yet' );
+		$order->add_meta_data( '_zeny_payment_link', 'pl_not_saved_yet' );
 		$order->update_meta_data( '_zeny_mode', 'test' );
 		$order->save();
 		$this->assertSame( 200, $this->deliver( $event )->get_status() );
@@ -124,6 +125,41 @@ final class WebhookTest extends IntegrationTestCase {
 			'currency' => array( array( 'amountReceived' => array( 'value' => '150000.00', 'currency' => 'USD' ) ), 'test' ),
 			'mode'     => array( array(), 'live' ),
 		);
+	}
+
+	// The order keeps every link it had: a late payment through a replaced link still finds it.
+	public function test_payment_through_a_replaced_link_reaches_the_order(): void {
+		$order = $this->orderWithLink();
+		$old   = $order->get_meta( '_zeny_payment_link_id' );
+		$order->set_total( '90000' );
+		$order->save();
+		$this->gateway()->process_payment( $order->get_id() );
+		$this->assertNotSame( $old, $this->reload( $order )->get_meta( '_zeny_payment_link_id' ) );
+
+		// Paid through the old link at the old amount: found, and held for the merchant.
+		$this->assertSame( 200, $this->deliver( $this->paidEvent( $order, array( 'paymentLink' => $old ) ) )->get_status() );
+		$this->assertSame( 'on-hold', $this->reload( $order )->get_status() );
+	}
+
+	public function test_manual_confirmation_accepts_a_payment_through_a_replaced_link(): void {
+		$order = $this->orderWithLink();
+		$old   = $order->get_meta( '_zeny_payment_link_id' );
+		$order->set_total( '90000' );
+		$order->save();
+		$this->gateway()->process_payment( $order->get_id() );
+		$this->assertNotSame( $old, $this->reload( $order )->get_meta( '_zeny_payment_link_id' ) );
+		StubZeny::addPayment(
+			$this->payment(
+				$order,
+				array(
+					'paymentLink'    => $old,
+					'amountReceived' => array( 'value' => '90000.00', 'currency' => 'IDR' ),
+				)
+			)
+		);
+
+		$this->assertNull( $this->confirm( $order, 'pay_1' ) );
+		$this->assertTrue( $this->reload( $order )->is_paid() );
 	}
 
 	public function test_bad_signature_is_400_and_changes_nothing(): void {

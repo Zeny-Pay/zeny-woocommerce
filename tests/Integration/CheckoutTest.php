@@ -19,7 +19,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$result = $this->gateway()->process_payment( $order->get_id() );
 
 		$this->assertSame( 'success', $result['result'] );
-		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$creates = StubZeny::creates();
 		$this->assertCount( 1, $creates );
 		$link_id = 'pl_' . substr( sha1( (string) $creates[0]['key'] ), 0, 16 );
 		$this->assertSame( 'https://pay.zeny.test/l/' . $link_id, $result['redirect'] );
@@ -50,7 +50,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		);
 		$this->gateway()->process_payment( $this->order()->get_id() );
 
-		$body = StubZeny::requests( 'POST', '/payment-links' )[0]['body'];
+		$body = StubZeny::creates()[0]['body'];
 		$this->assertSame( array( 'QRIS', 'BCA' ), $body['instruments'] );
 		$this->assertSame( array( 'name', 'email' ), $body['requiredPayerFields'] );
 		$expires = strtotime( $body['expiresAt'] );
@@ -65,7 +65,7 @@ final class CheckoutTest extends IntegrationTestCase {
 
 		$this->assertSame( 'success', $second['result'] );
 		$this->assertSame( $first['redirect'], $second['redirect'] );
-		$this->assertCount( 1, StubZeny::requests( 'POST', '/payment-links' ) );
+		$this->assertCount( 1, StubZeny::creates() );
 	}
 
 	// Review focus 2: a create whose answer was lost is retried with the same key and body.
@@ -74,7 +74,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$order  = $this->order();
 		$result = $this->gateway()->process_payment( $order->get_id() );
 
-		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$creates = StubZeny::creates();
 		$this->assertSame( 'success', $result['result'] );
 		$this->assertCount( 2, $creates );
 		$this->assertSame( $creates[0]['key'], $creates[1]['key'] );
@@ -93,7 +93,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertNoteContains( $this->reload( $order ), 'internal_error' );
 
 		$ok      = $this->gateway()->process_payment( $order->get_id() );
-		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$creates = StubZeny::creates();
 		$this->assertSame( 'success', $ok['result'] );
 		$this->assertCount( 4, $creates );
 		$this->assertCount( 1, array_unique( array_column( $creates, 'key' ) ) );
@@ -111,7 +111,7 @@ final class CheckoutTest extends IntegrationTestCase {
 			$lock->release( $order->get_id() );
 		}
 		$this->assertSame( 'failure', $result['result'] );
-		$this->assertSame( array(), StubZeny::requests( 'POST', '/payment-links' ) );
+		$this->assertSame( array(), StubZeny::creates() );
 	}
 
 	public function test_order_lock_is_exclusive_and_released(): void {
@@ -130,13 +130,156 @@ final class CheckoutTest extends IntegrationTestCase {
 		StubZeny::updateLink( $old, array( 'status' => 'expired' ) );
 
 		$result  = $this->gateway()->process_payment( $order->get_id() );
-		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$creates = StubZeny::creates();
 
 		$this->assertCount( 2, $creates );
 		$this->assertStringEndsWith( '-2', (string) $creates[1]['key'] );
 		$new = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
 		$this->assertNotSame( $old, $new );
 		$this->assertSame( 'https://pay.zeny.test/l/' . $new, $result['redirect'] );
+	}
+
+	/**
+	 * @dataProvider readErrors
+	 */
+	public function test_read_error_on_resubmit_keeps_the_link( int $status, string $code ): void {
+		$order = $this->order();
+		$first = $this->gateway()->process_payment( $order->get_id() );
+		$link  = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		StubZeny::failNext( 'GET', '/payment-links/' . $link, $status, 5, false, $code );
+
+		$failed = $this->gateway()->process_payment( $order->get_id() );
+
+		$this->assertSame( 'failure', $failed['result'] );
+		$this->assertSame( $link, $this->reload( $order )->get_meta( '_zeny_payment_link_id' ) );
+		$this->assertCount( 1, StubZeny::creates() );
+		$this->assertSame( 'active', StubZeny::link( $link )['status'] );
+
+		// Once the API answers again, the same link is reused.
+		StubZeny::reset_failures();
+		$this->assertSame( $first['redirect'], $this->gateway()->process_payment( $order->get_id() )['redirect'] );
+		$this->assertCount( 1, StubZeny::creates() );
+	}
+
+	/**
+	 * @return array<string, array{int, string}>
+	 */
+	public function readErrors(): array {
+		return array(
+			'rate limited' => array( 429, 'rate_limited' ),
+			'auth'         => array( 401, 'token_invalid' ),
+			'not found'    => array( 404, 'not_found' ),
+			'server'       => array( 500, 'internal_error' ),
+		);
+	}
+
+	// A resumed order (cart changed, same order id) must not keep the old amount.
+	public function test_resumed_order_with_a_new_total_cancels_the_old_link_and_creates_a_new_one(): void {
+		$order = $this->order( '150000' );
+		$this->gateway()->process_payment( $order->get_id() );
+		$old = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+
+		$this->resumeWithNewTotal( $order, '90000' );
+		$result = $this->gateway()->process_payment( $order->get_id() );
+
+		$creates = StubZeny::creates();
+		$this->assertCount( 2, $creates );
+		$this->assertStringEndsWith( '-2', (string) $creates[1]['key'] );
+		$this->assertSame( array( 'value' => '90000.00', 'currency' => 'IDR' ), $creates[1]['body']['amount'] );
+		$this->assertSame( 'canceled', StubZeny::link( $old )['status'] );
+		$new = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		$this->assertNotSame( $old, $new );
+		$this->assertSame( 'https://pay.zeny.test/l/' . $new, $result['redirect'] );
+		$this->assertSame( array( $old, $new ), ( new \Zeny\WooCommerce\WooCommerce\OrderLinks() )->linkIds( $this->reload( $order ) ) );
+	}
+
+	public function test_unchanged_total_on_resume_reuses_the_link(): void {
+		$order = $this->order( '150000' );
+		$first = $this->gateway()->process_payment( $order->get_id() );
+		$this->resumeWithNewTotal( $order, '150000' );
+
+		$this->assertSame( $first['redirect'], $this->gateway()->process_payment( $order->get_id() )['redirect'] );
+		$this->assertCount( 1, StubZeny::creates() );
+	}
+
+	public function test_failed_cancel_of_the_old_link_is_noted_and_checkout_goes_on(): void {
+		$order = $this->order( '150000' );
+		$this->gateway()->process_payment( $order->get_id() );
+		$old = $this->reload( $order )->get_meta( '_zeny_payment_link_id' );
+		StubZeny::failNext( 'POST', '/payment-links/' . $old . '/cancel', 500, 5 );
+
+		$this->resumeWithNewTotal( $order, '90000' );
+		$result = $this->gateway()->process_payment( $order->get_id() );
+
+		$this->assertSame( 'success', $result['result'] );
+		$this->assertNoteContains( $this->reload( $order ), $old );
+		$this->assertContains( $old, ( new \Zeny\WooCommerce\WooCommerce\OrderLinks() )->linkIds( $this->reload( $order ) ) );
+	}
+
+	// A lost create answer is replayed only for the same amount.
+	public function test_stored_request_is_not_replayed_after_the_total_changed(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 503, 5 );
+		$order = $this->order( '150000' );
+		$this->assertSame( 'failure', $this->gateway()->process_payment( $order->get_id() )['result'] );
+		StubZeny::reset_failures();
+
+		$this->resumeWithNewTotal( $order, '90000' );
+		$this->assertSame( 'success', $this->gateway()->process_payment( $order->get_id() )['result'] );
+
+		$creates = StubZeny::creates();
+		$last    = end( $creates );
+		$this->assertStringEndsWith( '-2', (string) $last['key'] );
+		$this->assertSame( '90000.00', $last['body']['amount']['value'] );
+	}
+
+	// Idempotency keys last 24 h: an older stored request is not replayed under its key.
+	public function test_stored_request_older_than_23_hours_starts_a_new_attempt(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 503, 5 );
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		StubZeny::reset_failures();
+		$order   = $this->reload( $order );
+		$request = $order->get_meta( '_zeny_link_request' );
+		$this->assertIsArray( $request );
+		$this->assertEqualsWithDelta( time(), $request['sentAt'], 5 );
+		$request['sentAt'] = time() - 23 * HOUR_IN_SECONDS - 1;
+		$order->update_meta_data( '_zeny_link_request', $request );
+		$order->save();
+
+		$this->gateway()->process_payment( $order->get_id() );
+
+		$creates = StubZeny::creates();
+		$this->assertStringEndsWith( '-2', (string) end( $creates )['key'] );
+	}
+
+	public function test_stored_request_younger_than_23_hours_is_replayed(): void {
+		StubZeny::failNext( 'POST', '/payment-links', 503, 5 );
+		$order = $this->order();
+		$this->gateway()->process_payment( $order->get_id() );
+		StubZeny::reset_failures();
+		$order             = $this->reload( $order );
+		$request           = $order->get_meta( '_zeny_link_request' );
+		$request['sentAt'] = time() - 22 * HOUR_IN_SECONDS;
+		$order->update_meta_data( '_zeny_link_request', $request );
+		$order->save();
+
+		$this->gateway()->process_payment( $order->get_id() );
+
+		$this->assertCount( 1, array_unique( array_column( StubZeny::creates(), 'key' ) ) );
+	}
+
+	private function resumeWithNewTotal( \WC_Order $order, string $price ): void {
+		$order   = $this->reload( $order );
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Kopi Susu 1L' );
+		$product->set_regular_price( $price );
+		$product->save();
+		// What WC_Checkout::create_order does for an order awaiting payment.
+		do_action( 'woocommerce_resume_order', $order->get_id() );
+		$order->remove_order_items();
+		$order->add_product( $product, 1 );
+		$order->calculate_totals( false );
+		$order->save();
 	}
 
 	public function test_link_already_paid_sends_the_shopper_to_the_order_received_page(): void {
@@ -148,7 +291,7 @@ final class CheckoutTest extends IntegrationTestCase {
 
 		$this->assertSame( 'success', $result['result'] );
 		$this->assertSame( $this->reload( $order )->get_checkout_order_received_url(), $result['redirect'] );
-		$this->assertCount( 1, StubZeny::requests( 'POST', '/payment-links' ) );
+		$this->assertCount( 1, StubZeny::creates() );
 	}
 
 	// Review focus 4: no https, no success redirect, checkout still works.
@@ -156,7 +299,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$result = $this->gateway()->process_payment( $this->order()->get_id() );
 
 		$this->assertSame( 'success', $result['result'] );
-		$body = StubZeny::requests( 'POST', '/payment-links' )[0]['body'];
+		$body = StubZeny::creates()[0]['body'];
 		$this->assertArrayNotHasKey( 'successRedirectUrl', $body );
 		$this->assertArrayNotHasKey( 'expiredRedirectUrl', $body );
 		$this->assertStringContainsString( 'https', $this->adminNotices() );
@@ -168,7 +311,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$order = $this->order();
 		$this->gateway()->process_payment( $order->get_id() );
 
-		$body = StubZeny::requests( 'POST', '/payment-links' )[0]['body'];
+		$body = StubZeny::creates()[0]['body'];
 		$this->assertSame( $this->reload( $order )->get_checkout_order_received_url(), $body['successRedirectUrl'] );
 		$this->assertStringStartsWith( 'https://shop.example/', $body['expiredRedirectUrl'] );
 		$this->assertStringNotContainsString( 'https', $this->adminNotices() );
@@ -224,7 +367,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		// The refused request did nothing, so a fixed resubmit goes out as a new attempt.
 		$this->configure( array( 'instruments' => 'QRIS' ) );
 		$this->assertSame( 'success', $this->gateway()->process_payment( $order->get_id() )['result'] );
-		$creates = StubZeny::requests( 'POST', '/payment-links' );
+		$creates = StubZeny::creates();
 		$this->assertStringEndsWith( '-1', (string) $creates[0]['key'] );
 		$this->assertStringEndsWith( '-2', (string) $creates[1]['key'] );
 		$this->assertSame( array( 'QRIS' ), $creates[1]['body']['instruments'] );
@@ -236,7 +379,7 @@ final class CheckoutTest extends IntegrationTestCase {
 		$this->assertSame( 'failure', $this->gateway()->process_payment( $order->get_id() )['result'] );
 		$this->gateway()->process_payment( $order->get_id() );
 
-		$this->assertCount( 1, array_unique( array_column( StubZeny::requests( 'POST', '/payment-links' ), 'key' ) ) );
+		$this->assertCount( 1, array_unique( array_column( StubZeny::creates(), 'key' ) ) );
 	}
 
 	public function test_cancelling_an_unpaid_order_cancels_its_link(): void {

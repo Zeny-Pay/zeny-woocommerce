@@ -19,14 +19,19 @@ use Zeny\WooCommerce\Infrastructure\ZenyApiException;
 /**
  * Finds or creates the order's payment link and returns where to send the
  * shopper. One order has one live link at a time: a resubmit reuses the
- * active link, or resends the same request under the same idempotency key
- * when the answer was lost, and a new link (attempt n+1) is only made once
- * the previous one expired or was canceled.
+ * active link while it asks for the current total, or resends the same
+ * request under the same idempotency key when the answer was lost. A new
+ * link (attempt n+1) is made only when the previous one expired, belongs to
+ * the other environment, asks for an old total (it is canceled first), or
+ * its create was definitely refused. A failed read never drops a link.
  */
 final class LinkCheckout {
 
 	// A stored request this close to its expiry is not resent: the link would be dead on arrival.
 	private const MIN_REMAINING_SEC = 60;
+
+	// Idempotency keys are kept for 24 hours; a replay later than this could create a second link.
+	private const MAX_REPLAY_AGE_SEC = 23 * 3600;
 
 	/**
 	 * API client.
@@ -135,33 +140,74 @@ final class LinkCheckout {
 
 	/**
 	 * Where to send the shopper for an existing link, or null to make a new one.
+	 * A read error propagates and leaves the link in place.
 	 *
 	 * @param WC_Order $order   Order.
 	 * @param string   $link_id Stored link id.
 	 * @throws ZenyApiException When the link cannot be read.
 	 */
 	private function reuse( WC_Order $order, string $link_id ): ?string {
-		// A link of the other environment cannot be read with this key; start over in this one.
-		if ( $this->links->mode( $order ) === $this->api->mode() ) {
-			$link = $this->api->retrievePaymentLink( $link_id );
-			if ( (int) ( $link['paidCount'] ?? 0 ) > 0 ) {
-				// Paid, and the webhook is on its way: never take a second payment.
-				return $order->get_checkout_order_received_url();
-			}
-			if ( 'active' === ( $link['status'] ?? '' ) ) {
-				$this->logger->debug(
-					'Reusing the active payment link.',
+		if ( $this->links->mode( $order ) !== $this->api->mode() ) {
+			// A link of the other environment cannot be read or canceled with this key.
+			$this->abandon( $order, $link_id, false );
+			return null;
+		}
+		$link = $this->api->retrievePaymentLink( $link_id );
+		if ( (int) ( $link['paidCount'] ?? 0 ) > 0 ) {
+			// Paid, and the webhook is on its way: never take a second payment.
+			return $order->get_checkout_order_received_url();
+		}
+		if ( 'active' !== ( $link['status'] ?? '' ) ) {
+			$this->abandon( $order, $link_id, false );
+			return null;
+		}
+		$amount = Money::fromApi( $link['amount'] ?? null );
+		if ( null === $amount || ! $amount->equals( self::total( $order ) ) ) {
+			// The order changed since the link was made (a resumed cart): the link must not take the old amount.
+			$this->abandon( $order, $link_id, true );
+			return null;
+		}
+		$this->logger->debug(
+			'Reusing the active payment link.',
+			array(
+				'order' => $order->get_id(),
+				'link'  => $link_id,
+			)
+		);
+		return $this->links->linkUrl( $order );
+	}
+
+	/**
+	 * Stops using a link and moves to the next attempt. An active link is
+	 * canceled first, best effort: a link that cannot be canceled stays in the
+	 * order's link list, so a payment through it still reaches the order.
+	 *
+	 * @param WC_Order $order   Order.
+	 * @param string   $link_id Link id.
+	 * @param bool     $cancel  Cancel the link first.
+	 */
+	private function abandon( WC_Order $order, string $link_id, bool $cancel ): void {
+		if ( $cancel ) {
+			try {
+				$this->api->cancelPaymentLink( $link_id );
+				/* translators: %s: payment link id. */
+				$order->add_order_note( sprintf( __( 'Zeny payment link %s canceled because the order total changed.', 'zeny' ), $link_id ) );
+			} catch ( ZenyApiException $e ) {
+				$this->logger->error(
+					'Could not cancel the replaced payment link.',
 					array(
-						'order' => $order->get_id(),
-						'link'  => $link_id,
+						'order'     => $order->get_id(),
+						'link'      => $link_id,
+						'code'      => $e->errorCode(),
+						'requestId' => $e->requestId(),
 					)
 				);
-				return $this->links->linkUrl( $order );
+				/* translators: 1: payment link id, 2: error code. */
+				$order->add_order_note( sprintf( __( 'Zeny could not cancel the replaced payment link %1$s (%2$s). A payment through it is put on hold for you to check.', 'zeny' ), $link_id, $e->errorCode() ) );
 			}
 		}
 		$this->links->nextAttempt( $order );
 		$order->save();
-		return null;
 	}
 
 	/**
@@ -173,15 +219,26 @@ final class LinkCheckout {
 	private function create( WC_Order $order ): string {
 		$body = $this->requestBody( $order );
 		$key  = IdempotencyKey::forOrderAttempt( $this->siteHash, $order->get_id(), $this->links->attempt( $order ) );
-		$link = $this->api->createPaymentLink( $body, $key );
+		try {
+			$link = $this->api->createPaymentLink( $body, $key );
+		} catch ( ZenyApiException $e ) {
+			// A refused create did nothing: the next submit is a new attempt, so a fixed
+			// setting takes effect. An unknown outcome keeps its key and body for the replay.
+			if ( ! $e->isOutcomeUnknown() ) {
+				$this->links->nextAttempt( $order );
+				$order->save();
+			}
+			throw $e;
+		}
 
 		$id  = is_string( $link['id'] ?? null ) ? $link['id'] : '';
 		$url = is_string( $link['url'] ?? null ) ? $link['url'] : '';
 		if ( '' === $id || 0 !== strpos( $url, 'https://' ) ) {
 			throw new ZenyApiException( 'api_error', 'unexpected_response', 'The payment link has no id or https URL.', 201, null, $key->value() );
 		}
+		$expires = is_string( $link['expiresAt'] ?? null ) ? strtotime( $link['expiresAt'] ) : false;
 
-		$this->links->saveLink( $order, $id, $url, $this->api->mode() );
+		$this->links->saveLink( $order, $id, $url, $this->api->mode(), false === $expires ? null : $expires );
 		if ( ! $order->has_status( 'pending' ) ) {
 			$order->set_status( 'pending' );
 		}
@@ -201,8 +258,11 @@ final class LinkCheckout {
 	}
 
 	/**
-	 * The body for the current attempt: the one already sent when its answer
-	 * was lost (the same key needs the same body), else a new one, stored before sending.
+	 * The body for the current attempt. The one already sent is resent when its
+	 * answer was lost (the same key needs the same body), as long as it still
+	 * asks for the order total, has time left, and is young enough for the API
+	 * to remember its key. Otherwise a new attempt with a new body, stored
+	 * before sending.
 	 *
 	 * @param WC_Order $order Order.
 	 * @return array<string, mixed>
@@ -211,17 +271,43 @@ final class LinkCheckout {
 	private function requestBody( WC_Order $order ): array {
 		$pending = $this->links->pendingRequest( $order );
 		if ( null !== $pending ) {
-			$expires = is_string( $pending['expiresAt'] ?? null ) ? strtotime( $pending['expiresAt'] ) : false;
-			if ( false !== $expires && $expires - time() > self::MIN_REMAINING_SEC ) {
-				return $pending;
+			if ( $this->replayable( $pending['body'], $pending['sentAt'], self::total( $order ) ) ) {
+				return $pending['body'];
 			}
 			$this->links->nextAttempt( $order );
 		}
 
-		$body = $this->spec( $order )->toRequestBody( time() );
-		$this->links->savePendingRequest( $order, $body );
+		$now  = time();
+		$body = $this->spec( $order )->toRequestBody( $now );
+		$this->links->savePendingRequest( $order, $body, $now );
 		$order->save();
 		return $body;
+	}
+
+	/**
+	 * Whether a stored request may be resent under its key.
+	 *
+	 * @param array<string, mixed> $body    Stored body.
+	 * @param int                  $sent_at When it was first sent.
+	 * @param Money                $total   Current order total.
+	 */
+	private function replayable( array $body, int $sent_at, Money $total ): bool {
+		$now     = time();
+		$expires = is_string( $body['expiresAt'] ?? null ) ? strtotime( $body['expiresAt'] ) : false;
+		$amount  = Money::fromApi( $body['amount'] ?? null );
+		return $now - $sent_at <= self::MAX_REPLAY_AGE_SEC
+			&& false !== $expires && $expires - $now > self::MIN_REMAINING_SEC
+			&& null !== $amount && $amount->equals( $total );
+	}
+
+	/**
+	 * The order total as IDR money.
+	 *
+	 * @param WC_Order $order Order.
+	 * @throws InvalidArgumentException When the total is not a plain decimal.
+	 */
+	private static function total( WC_Order $order ): Money {
+		return Money::idr( (string) wc_format_decimal( $order->get_total(), 2 ) );
 	}
 
 	/**
@@ -238,7 +324,7 @@ final class LinkCheckout {
 		return new LinkSpec(
 			/* translators: 1: order number, 2: shop name. */
 			sprintf( __( 'Order #%1$s – %2$s', 'zeny' ), $order->get_order_number(), wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ) ),
-			Money::idr( (string) wc_format_decimal( $order->get_total(), 2 ) ),
+			self::total( $order ),
 			$items,
 			$order->get_checkout_order_received_url(),
 			$order->get_checkout_payment_url(),
@@ -265,14 +351,9 @@ final class LinkCheckout {
 				'requestId' => $e->requestId(),
 			)
 		);
-		// A refused request did nothing: the next submit is a new attempt, so a fixed
-		// setting takes effect. An unknown outcome keeps its key and body for the replay.
-		if ( ! $e->isOutcomeUnknown() ) {
-			$this->links->nextAttempt( $order );
-		}
 		$order->add_order_note(
 			/* translators: 1: error code, 2: request id. */
-			sprintf( __( 'Zeny could not create the payment link: %1$s (request %2$s).', 'zeny' ), $e->errorCode(), $reference )
+			sprintf( __( 'Zeny request failed while starting the payment: %1$s (request %2$s).', 'zeny' ), $e->errorCode(), $reference )
 		);
 		$order->save();
 

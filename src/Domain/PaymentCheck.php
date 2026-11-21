@@ -23,17 +23,18 @@ final class PaymentCheck {
 	/**
 	 * The first problem found, or null when the payment pays the order.
 	 *
-	 * @param array<mixed> $payment       Payment object from the API.
-	 * @param string       $payment_mode  Mode the payment was read in (event mode, or the key's for an API read).
-	 * @param string       $link_id       Link id stored on the order.
-	 * @param Money        $order_total   Order total.
-	 * @param string       $expected_mode Mode of the configured key.
+	 * @param array<mixed>  $payment       Payment object from the API.
+	 * @param string        $payment_mode  Mode the payment was read in (event mode, or the key's for an API read).
+	 * @param array<string> $link_ids      Every link id the order ever had: a shopper can pay an older one.
+	 * @param Money         $order_total   Order total.
+	 * @param string        $expected_mode Mode of the configured key.
 	 */
-	public static function problem( array $payment, string $payment_mode, string $link_id, Money $order_total, string $expected_mode ): ?string {
+	public static function problem( array $payment, string $payment_mode, array $link_ids, Money $order_total, string $expected_mode ): ?string {
 		if ( null === Mode::fromString( $payment_mode ) || $payment_mode !== $expected_mode ) {
 			return self::MODE_MISMATCH;
 		}
-		if ( '' === $link_id || ( $payment['paymentLink'] ?? null ) !== $link_id ) {
+		$link = $payment['paymentLink'] ?? null;
+		if ( ! is_string( $link ) || '' === $link || ! in_array( $link, $link_ids, true ) ) {
 			return self::LINK_MISMATCH;
 		}
 		if ( 'paid' !== ( $payment['status'] ?? null ) ) {

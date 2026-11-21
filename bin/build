@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Builds build/zeny-woocommerce-<version>.zip from the committed tree with
+# `git archive` (so .gitattributes export-ignore keeps dev files out), then
+# checks what is inside and that every PHP file parses on PHP 7.4.
+#   bin/build [ref]   default HEAD
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ref="${1:-HEAD}"
+slug=zeny-woocommerce
+
+fail() { echo "build: $*" >&2; exit 1; }
+
+header_version="$(git -C "$root" show "$ref:$slug.php" | sed -n 's/^ \* Version: *//p')"
+const_version="$(git -C "$root" show "$ref:$slug.php" | sed -n "s/^define( 'ZENY_WC_VERSION', '\(.*\)' );/\1/p")"
+readme_version="$(git -C "$root" show "$ref:readme.txt" | sed -n 's/^Stable tag: *//p')"
+[ -n "$header_version" ] || fail "no Version in the plugin header"
+[ "$header_version" = "$const_version" ] || fail "header Version $header_version != ZENY_WC_VERSION $const_version"
+[ "$header_version" = "$readme_version" ] || fail "header Version $header_version != readme.txt Stable tag $readme_version"
+git -C "$root" show "$ref:CHANGELOG.md" | grep -q "^## $header_version" || fail "CHANGELOG.md has no $header_version entry"
+
+zip="$root/build/$slug-$header_version.zip"
+mkdir -p "$root/build"
+rm -f "$zip"
+git -C "$root" archive --format=zip --prefix="$slug/" -o "$zip" "$ref"
+
+files="$(unzip -Z1 "$zip")"
+for required in "$slug/$slug.php" "$slug/readme.txt" "$slug/src/Autoloader.php" "$slug/assets/js/blocks.js" \
+	"$slug/assets/js/admin.js" "$slug/assets/js/order-status.js" "$slug/languages/zeny.pot" \
+	"$slug/languages/zeny-id_ID.po" "$slug/languages/zeny-id_ID.mo"; do
+	grep -qxF "$required" <<<"$files" || fail "missing $required"
+done
+forbidden='^'"$slug"'/(tests|bin|vendor|docs|build|\.github)/|/(composer\.(json|lock)|phpunit\.xml\.dist|phpstan\.neon\.dist|phpcs\.xml\.dist|docker-compose\.test\.yml|AGENTS\.md|CLAUDE\.md|\.gitignore|\.gitattributes)$'
+if grep -E "$forbidden" <<<"$files"; then
+	fail "dev files in the zip (listed above)"
+fi
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+unzip -q "$zip" -d "$tmp"
+docker run --rm -v "$tmp/$slug:/plugin:ro" php:7.4-cli sh -c \
+	'find /plugin -name "*.php" -print0 | xargs -0 -n1 php -l >/dev/null' || fail "a PHP file does not parse on PHP 7.4"
+
+echo "built $zip ($(wc -l <<<"$files") entries)"

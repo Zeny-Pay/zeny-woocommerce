@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: PHPCS + PHPStan
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/lint
+
+  unit:
+    name: PHPUnit (PHP ${{ matrix.php }})
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.4", "8.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/test unit ${{ matrix.php }}
+
+  integration:
+    name: Integration (latest WordPress + WooCommerce, ${{ matrix.store }} orders)
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [posts, hpos]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/test integration
+        env:
+          ORDER_STORES: ${{ matrix.store }}
+
+
+  package:
+    name: Release zip contents
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/build

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Rebuilds languages/zeny.pot from the source, merges it into every .po and
+# compiles the .mo files, with WP-CLI in Docker.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+wp() {
+	docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$root:/plugin" -w /plugin wordpress:cli-php8.3 \
+		php -d memory_limit=512M /usr/local/bin/wp --allow-root "$@"
+}
+wp i18n make-pot . languages/zeny.pot --slug=zeny --domain=zeny \
+	--include=zeny-woocommerce.php,src --headers='{"Report-Msgid-Bugs-To":"https://usezeny.com","POT-Creation-Date":""}'
+wp i18n update-po languages/zeny.pot languages/zeny-id_ID.po
+wp i18n make-mo languages/

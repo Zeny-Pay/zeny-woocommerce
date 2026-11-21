@@ -1,0 +1,29 @@
+# WordPress + WooCommerce for the integration suite. Run it with `bin/test integration`.
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    tmpfs:
+      - /var/lib/mysql
+
+  wordpress:
+    image: wordpress:cli-php8.3
+    user: root
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WP_VERSION: ${WP_VERSION:-latest}
+      WC_VERSION: ${WC_VERSION:-}
+      ORDER_STORE: ${ORDER_STORE:-posts}
+    volumes:
+      - .:/plugin

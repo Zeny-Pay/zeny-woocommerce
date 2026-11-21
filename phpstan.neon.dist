@@ -1,0 +1,9 @@
+parameters:
+	level: 6
+	phpVersion: 70400
+	paths:
+		- zeny-woocommerce.php
+		- src
+	bootstrapFiles:
+		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+		- tests/phpstan-constants.php

@@ -99,19 +99,28 @@ final class WebhookController {
 			return self::answer( 200, 'ignored' );
 		}
 
-		$api   = Plugin::api();
+		$api = Plugin::api();
+		if ( null === $api ) {
+			// Without a usable key the event cannot be checked; Zeny retries once the settings are fixed.
+			$logger->error( 'Webhook received, but no valid API key is saved.', array( 'event' => $event->id() ) );
+			return self::answer( 500, 'not_configured' );
+		}
+
 		$links = new OrderLinks();
 		$order = $links->findByLinkId( $link_id );
-		if ( null === $api || null === $order ) {
-			// The event can beat process_payment storing the link. Zeny retries, by then it is stored.
-			$logger->error(
-				'No order holds the paid link yet.',
+		if ( null === $order ) {
+			// Not a race with checkout: the shopper only gets a link's URL after the order
+			// has stored the link (saveLink, then save, then the redirect), and every link
+			// an order had stays stored. So no order holding the link means the link is not
+			// this shop's: another integration on the same Zeny project made it.
+			$logger->debug(
+				'Webhook for a link no order holds; ignored.',
 				array(
 					'event' => $event->id(),
 					'link'  => $link_id,
 				)
 			);
-			return self::answer( 500, 'order_not_found' );
+			return new WP_REST_Response( array( 'ignored' => 'unknown_link' ), 200 );
 		}
 
 		/**

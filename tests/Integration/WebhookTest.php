@@ -21,21 +21,22 @@ final class WebhookTest extends IntegrationTestCase {
 		$this->assertNoteContains( $order, 'pay_1' );
 	}
 
-	// Review focus 1: the event beats process_payment saving the link, so Zeny must retry.
-	public function test_event_for_a_link_no_order_holds_yet_answers_500(): void {
-		$order = $this->order();
-		$event = $this->paidEvent( $order, array( 'paymentLink' => 'pl_not_saved_yet' ) );
+	// The shopper only gets a link URL after the order stores it, so a link no order holds is not ours.
+	public function test_event_for_a_link_no_order_holds_is_acknowledged_and_ignored(): void {
+		$order    = $this->orderWithLink();
+		$response = $this->deliver( $this->paidEvent( $order, array( 'paymentLink' => 'pl_from_elsewhere' ) ) );
 
-		$this->assertSame( 500, $this->deliver( $event )->get_status() );
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array( 'ignored' => 'unknown_link' ), $response->get_data() );
 		$this->assertFalse( $this->reload( $order )->is_paid() );
+		$this->assertSame( 'pending', $this->reload( $order )->get_status() );
+	}
 
-		// The retry, once the link is stored, completes the order.
-		$order->update_meta_data( '_zeny_payment_link_id', 'pl_not_saved_yet' );
-		$order->add_meta_data( '_zeny_payment_link', 'pl_not_saved_yet' );
-		$order->update_meta_data( '_zeny_mode', 'test' );
-		$order->save();
-		$this->assertSame( 200, $this->deliver( $event )->get_status() );
-		$this->assertTrue( $this->reload( $order )->is_paid() );
+	public function test_event_without_a_usable_api_key_answers_500_so_zeny_retries(): void {
+		$order = $this->orderWithLink();
+		$this->configure( array( 'api_key' => '' ) );
+		$this->assertSame( 500, $this->deliver( $this->paidEvent( $order ) )->get_status() );
+		$this->assertFalse( $this->reload( $order )->is_paid() );
 	}
 
 	// Review focus 1: a delivery that cannot take the order lock is retried, not dropped.
